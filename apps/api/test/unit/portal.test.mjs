@@ -30,6 +30,8 @@ describe("unit: portal orang tua", () => {
   it("profile + history + documents scoped to own child", async () => {
     const prof = await (await app.request("/api/portal/profile", { headers: H(alya) })).json();
     assert.equal(prof.email, "alya@example.com");
+    assert.equal((await app.request("/api/portal/change-password", { method: "POST", headers: H(alya), body: JSON.stringify({ current: "salah", next: "baru123" }) })).status, 401);
+    assert.equal((await app.request("/api/portal/change-password", { method: "POST", headers: H(alya), body: JSON.stringify({ current: "prototype", next: "abc" }) })).status, 400);
     const h = await app.request(`/api/portal/children/${kidA}/history`, { headers: H(alya) });
     assert.equal(h.status, 200);
     assert.equal((await app.request(`/api/portal/children/${kidB}/history`, { headers: H(alya) })).status, 404);

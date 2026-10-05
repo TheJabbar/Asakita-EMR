@@ -354,15 +354,53 @@ function Stim() {
 }
 
 function Acct({ me, setMe }: any) {
-  const [prof, setProf] = useState<any>(null);
+  const [prof, setProf] = useState<any>(null); const [view, setView] = useState("");
   useEffect(() => { api.get("/api/portal/profile").then(setProf).catch(() => {}); }, []);
-  const rows = [["👤", "Data diri"], ["👶", "Anak saya", "#/"], ["🔔", "Notifikasi"], ["🔐", "Keamanan akun"], ["⚙️", "Pengaturan"], ["❔", "Bantuan"], ["ℹ️", "Tentang Asakita"]];
+  useEffect(() => { document.documentElement.style.fontSize = localStorage.getItem("ak-font") === "big" ? "18px" : ""; }, [view]);
+  const rows: [string, string, string][] = [["👶", "Anak saya", "#/"], ["🔔", "Notifikasi", "notif"], ["🔐", "Keamanan akun", "aman"], ["⚙️", "Pengaturan", "atur"], ["❔", "Bantuan", "bantu"], ["ℹ️", "Tentang Asakita", "tentang"]];
+  if (view) return <div>
+    <div className="back-title"><button className="back" onClick={() => setView("")}>‹</button><div><h1>{{ notif: "Notifikasi", aman: "Keamanan akun", atur: "Pengaturan", bantu: "Bantuan", tentang: "Tentang Asakita" }[view]}</h1><p>Akun orang tua</p></div></div>
+    {view === "notif" && <Notif />}{view === "aman" && <Pass />}{view === "atur" && <Sett />}
+    {view === "bantu" && <div className="card" style={{ fontSize: 13.5, lineHeight: 1.7 }}><b>Butuh bantuan?</b><p>Hubungi front office Asakita untuk: ubah data anak, minta salinan dokumen, jadwal ulang, atau laporan untuk sekolah.</p><p>Jam layanan: Senin–Sabtu, 08.00–17.00 WITA.</p></div>}
+    {view === "tentang" && <div className="card" style={{ fontSize: 13.5, lineHeight: 1.7 }}><div className="cover-logo">♡</div><b>Asakita Child Health Center</b><p>Klinik tumbuh kembang anak — dr. Imelda Hady, Sp.A. Portal v0.1: data yang tampil hanya milik anak tertaut di akun ini.</p></div>}
+  </div>;
   return <div>
     <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Akun orang tua</h1><p>Profil & pengaturan</p></div></div>
     <div className="card child-card"><div className="avatar">👩</div><div><h3 style={{ margin: 0 }}>{me?.name || "Orang tua"}</h3><p style={{ color: "#6f7d75", fontSize: 12, margin: "4px 0 0" }}>{me?.email || ""}</p></div></div>
     <div className="info"><div className="tr"><span className="lab">No. HP</span><span className="val">{prof?.phone || "—"}</span></div><div className="tr"><span className="lab">Alamat</span><span className="val">{prof?.address || "—"}</span></div><div className="tr"><span className="lab">Ubah data</span><span className="val" style={{ fontWeight: 400, fontSize: 12 }}>Via front office</span></div></div>
-    <div className="info">{rows.map(([e, l, h]) => <div className="tr" key={l} style={{ cursor: h ? "pointer" : "default" }} onClick={() => h && (location.hash = h)}><span>{e} {l}</span><span>›</span></div>)}</div>
+    <div className="info">{rows.map(([e, l, h]) => <div className="tr" key={l} style={{ cursor: "pointer" }} onClick={() => h.startsWith("#/") ? (location.hash = h) : setView(h)}><span>{e} {l}</span><span>›</span></div>)}</div>
     <button className="btn btn-d" onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include" }).then(() => { setMe(null); location.hash = "#/welcome"; })}>Keluar</button>
     <p className="quote">Asakita v0.1 • data anak hanya untuk akun tertaut</p>
   </div>;
+}
+
+function Notif() {
+  const [items, setItems] = useState<any[]>([]);
+  useEffect(() => {
+    Promise.all([api.get("/api/portal/appointments?scope=upcoming").catch(() => ({ data: [] })), api.get("/api/portal/reports").catch(() => ({ data: [] }))]).then(([a, r]) => {
+      const ap = (a.data || []).slice(0, 3).map((x: any) => ({ e: "📅", t: `${x.type} — ${x.starts_at?.slice(0, 16).replace("T", " ")}`, s: x.status }));
+      const rp = (r.data || []).slice(0, 2).map((x: any) => ({ e: "📄", t: `Laporan ${x.period_start}–${x.period_end} terbit`, s: "baru" }));
+      setItems([...ap, ...rp]);
+    });
+  }, []);
+  if (!items.length) return <div className="empty"><div className="big">🔔</div>Belum ada notifikasi.</div>;
+  return <div>{items.map((n, i) => <div className="row" key={i}><div className="thumb">{n.e}</div><div><h4>{n.t}</h4><p>{n.s}</p></div></div>)}</div>;
+}
+
+function Pass() {
+  const [f, setF] = useState({ a: "", b: "", c: "" }); const [m, setM] = useState("");
+  return <div className="card"><label className="lbl">Password lama</label><input className="inp" type="password" value={f.a} onChange={(e) => setF({ ...f, a: e.target.value })} />
+    <label className="lbl">Password baru (≥6)</label><input className="inp" type="password" value={f.b} onChange={(e) => setF({ ...f, b: e.target.value })} />
+    <label className="lbl">Ulangi password baru</label><input className="inp" type="password" value={f.c} onChange={(e) => setF({ ...f, c: e.target.value })} />
+    {m && <p style={{ fontSize: 13, color: m.startsWith("✓") ? "#237142" : "#b42318" }}>{m}</p>}
+    <button className="btn btn-p" style={{ marginTop: 10 }} onClick={() => {
+      if (f.b !== f.c) return setM("Konfirmasi tidak sama.");
+      api.post("/api/portal/change-password", { current: f.a, next: f.b }).then(() => { setM("✓ Password diganti."); setF({ a: "", b: "", c: "" }); }).catch(() => setM("Gagal — password lama salah atau baru kurang dari 6 karakter.");
+    }}>Ganti password</button></div>;
+}
+
+function Sett() {
+  const [big, setBig] = useState(localStorage.getItem("ak-font") === "big");
+  return <div className="card"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 }}><span>🔍 Teks besar</span><button className={"tab" + (big ? " on" : "")} onClick={() => { const v = !big; setBig(v); localStorage.setItem("ak-font", v ? "big" : ""); document.documentElement.style.fontSize = v ? "18px" : ""; }}>{big ? "Aktif" : "Mati"}</button></div>
+    <p style={{ fontSize: 12, color: "#6f7d75" }}>Memperbesar huruf di seluruh portal. Tersimpan di perangkat ini.</p></div>;
 }

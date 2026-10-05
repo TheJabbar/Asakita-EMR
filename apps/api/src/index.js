@@ -391,6 +391,17 @@ app.get("/api/portal/profile", P, (c) => {
   const p = row("SELECT phone,address FROM parents WHERE user_id=?", u.id) || {};
   return c.json({ name: u.name, email: u.email, phone: p.phone || "", address: p.address || "" });
 });
+// ponytail: self-service password change (google-linked accounts have no hash → 400)
+app.post("/api/portal/change-password", P, bodyLimit, async (c) => {
+  const u = c.get("user");
+  const { current, next } = await c.req.json().catch(() => ({}));
+  const full = row("SELECT password_hash FROM users WHERE id=?", u.id);
+  if (!full?.password_hash) return err(c, "invalid", "akun Google — atur password via Google", 400);
+  if (!verifyPassword(String(current || ""), full.password_hash)) return err(c, "invalid", "password lama salah", 401);
+  if (!next || String(next).length < 6) return err(c, "invalid", "password baru ≥6 karakter", 400);
+  run("UPDATE users SET password_hash=? WHERE id=?", hashPassword(String(next)), u.id);
+  return c.json({ ok: true });
+});
 app.get("/api/portal/appointments", P, (c) => {
   const ids = parentChildIds(c.get("user").id);
   if (!ids.length) return c.json({ data: [] });
