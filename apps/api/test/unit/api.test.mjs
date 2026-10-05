@@ -41,6 +41,8 @@ describe("unit: EMR loop", () => {
     assert.equal((await app.request("/api/therapy-sessions", { method: "POST", headers: H(staff), body: JSON.stringify({ child_id: childId, type_id: typeId, target: "bicara", activities: ["a"] }) })).status, 201);
     assert.equal((await app.request("/api/growth", { method: "POST", headers: H(staff), body: JSON.stringify({ child_id: childId, weight_kg: 13, height_cm: 90 }) })).status, 201);
     assert.equal((await app.request("/api/milestones", { method: "PUT", headers: H(staff), body: JSON.stringify({ child_id: childId, key: "bicara", label: "Bicara", status: "in_progress" }) })).status, 200);
+    assert.equal((await app.request("/api/therapy-programs", { method: "PUT", headers: H(staff), body: JSON.stringify({ child_id: childId, type_id: typeId, frequency: "2x/minggu", status: "aktif" }) })).status, 200);
+    assert.ok((await (await app.request(`/api/therapy-programs?childId=${childId}`, { headers: H(staff) })).json()).data.some((p) => p.status === "aktif"));
     assert.equal((await app.request("/api/screenings", { method: "POST", headers: H(staff), body: JSON.stringify({ child_id: childId, domain: "bahasa", result: "Dalam Proses" }) })).status, 201);
     assert.equal((await app.request(`/api/reports/preview?childId=${childId}`, { headers: H(staff) })).status, 200);
     const rp = await app.request("/api/reports", { method: "POST", headers: H(staff), body: JSON.stringify({ child_id: childId, summary: "ok" }) });
