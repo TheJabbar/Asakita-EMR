@@ -222,7 +222,13 @@ app.patch("/api/appointments/:id/status", need(...STAFF), bodyLimit, async (c) =
 });
 
 // --- visits + SOAP (terapis read-only, admin blocked from write) ---
-app.post("/api/visits", need("owner", "dokter"), bodyLimit, async (c) => {
+app.get("/api/visits", need(...STAFF), (c) => {
+  const { childId } = c.req.query();
+  let sql = "SELECT v.*, CASE WHEN s.visit_id IS NULL THEN 0 ELSE 1 END has_soap FROM visits v LEFT JOIN soap_notes s ON s.visit_id=v.id WHERE 1=1";
+  const p = [];
+  if (childId) { sql += " AND v.child_id=?"; p.push(childId); }
+  return c.json({ data: rows(sql + " ORDER BY v.date DESC LIMIT 50", ...p) });
+});app.post("/api/visits", need("owner", "dokter"), bodyLimit, async (c) => {
   const b = await c.req.json();
   const id = uid("v");
   run("INSERT INTO visits(id,child_id,appointment_id,date,visit_type,status) VALUES(?,?,?,?,?,?)", id, b.child_id, b.appointment_id || null, b.date || new Date().toISOString().slice(0, 10), b.visit_type || "Konsultasi", "draft");

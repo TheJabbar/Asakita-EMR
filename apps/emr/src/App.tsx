@@ -289,10 +289,10 @@ function Dash() {
 
 function Patients({ route, me }: any) {
   const [list, setList] = useState<any[]>([]); const [sel, setSel] = useState<any>(null);
-  const [tab, setTab] = useState("Ringkasan"); const [q, setQ] = useState(""); const [sess, setSess] = useState<any[]>([]);
+  const [tab, setTab] = useState("Ringkasan"); const [q, setQ] = useState(""); const [sess, setSess] = useState<any[]>([]); const [visits, setVisits] = useState<any[]>([]);
   const id = route.split("/")[2];
   useEffect(() => { api.get("/api/patients").then((r) => setList(r.data)).catch(() => {}); }, []);
-  useEffect(() => { if (id) { api.get("/api/patients/" + id).then(setSel).catch(() => {}); api.get("/api/therapy-sessions?childId=" + id).then((r) => setSess(r.data)).catch(() => {}); } }, [id]);
+  useEffect(() => { if (id) { api.get("/api/patients/" + id).then(setSel).catch(() => {}); api.get("/api/therapy-sessions?childId=" + id).then((r) => setSess(r.data)).catch(() => {}); api.get("/api/visits?childId=" + id).then((r) => setVisits(r.data)).catch(() => {}); } }, [id]);
   const filtered = list.filter((p) => (p.full_name + " " + p.mr_number).toLowerCase().includes(q.toLowerCase()));
   const add = async () => {
     const full_name = prompt("Nama lengkap anak?");
@@ -315,7 +315,8 @@ function Patients({ route, me }: any) {
         {tab === "Riwayat Medis" && <div><p><b>Riwayat kelahiran</b><br />{sel.history?.birth_history || "—"}</p><p><b>Catatan khusus</b><br />{sel.history?.notes || "—"}</p><p>Alergi: <span className="pill">{sel.history?.allergies || "—"}</span></p></div>}
         {tab === "Dokumen" && <div>{(sel.documents || []).map((d: any) => <div key={d.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>📄 <b>{d.title}</b> <small style={{ color: "#6d7c74" }}>{d.kind} • {d.file_url}</small></div>)}{!sel.documents?.length && <div className="empty"><div className="big">📄</div>Belum ada dokumen. Upload akte / assessment / rujukan (PDF/JPG ≤10MB).</div>}<Upload childId={id} onDone={() => api.get("/api/patients/" + id).then(setSel)} /></div>}
         {tab === "Billing" && <div><p>Asuransi: <b>{sel.insurance || "Pribadi"}</b></p><p className="sub" style={{ margin: 0 }}>Billing read-only di MVP — modul pembayaran penuh non-goal.</p></div>}
-        {tab === "Catatan" && <div>{sess.length ? sess.slice(0, 8).map((s: any) => <div key={s.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee", fontSize: 13.5 }}><b>{s.date}</b> • {s.type_name} — {s.target || "—"}<br /><small style={{ color: "#6d7c74" }}>{s.home_recommendation || ""}</small></div>) : "Belum ada sesi terapi."}</div>}
+        {tab === "Catatan" && <div><h4 style={{ margin: "0 0 6px" }}>Kunjungan & SOAP</h4>{visits.length ? visits.map((v: any) => <div key={v.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee", fontSize: 13.5, cursor: "pointer" }} onClick={() => (location.hash = "#/soap/" + v.id)}><b>{v.date}</b> • {v.visit_type} <span className={"pill " + (v.status === "final" ? "ok" : "warn")}>{v.status}{v.has_soap ? "" : " • kosong"}</span><br /><small style={{ color: "#2c5545", textDecoration: "underline" }}>{v.has_soap ? "Buka catatan →" : "Isi catatan →"}</small></div>) : "Belum ada kunjungan."}
+          <h4 style={{ margin: "14px 0 6px" }}>Sesi terapi</h4>{sess.length ? sess.slice(0, 8).map((s: any) => <div key={s.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee", fontSize: 13.5 }}><b>{s.date}</b> • {s.type_name} — {s.target || "—"}<br /><small style={{ color: "#6d7c74" }}>{s.home_recommendation || ""}</small></div>) : "Belum ada sesi terapi."}</div>}
       </div></div>;
   }
   return <div><h2 className="serif">Data pasien</h2><p className="sub">{list.length} anak terdaftar — klik baris untuk buka rekam.</p>
