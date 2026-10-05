@@ -1,0 +1,19 @@
+
+# graphify-axet
+.graphify/
+# deps + build output
+node_modules/
+apps/*/node_modules/
+packages/*/node_modules/
+apps/*/dist/
+packages/*/dist/
+# local runtime data (sqlite, uploads, mail outbox) — never commit
+data/
+*.db
+*.db-shm
+*.db-wal
+# secrets + logs
+.env
+.env.*
+*.log
+outbox.json

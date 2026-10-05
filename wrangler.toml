@@ -1,0 +1,12 @@
+name = "asakita-api"
+main = "apps/api/src/index.js"
+compatibility_date = "2026-01-01"
+[vars]
+FRONTEND_ORIGIN = "https://portal.asakita.id"
+[[d1_databases]]
+binding = "DB"
+database_name = "asakita-prod"
+database_id = "REPLACE_ME"
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "asakita-docs"

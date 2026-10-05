@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asakita EMR Lite — Prototype</title>
+  <style>
+    :root{
+      --sage:#557a63;
+      --sage-dark:#315845;
+      --sage-soft:#dfe9df;
+      --cream:#fbf7ee;
+      --beige:#efe2cf;
+      --wood:#c99f73;
+      --mustard:#e7b75f;
+      --peach:#efaa91;
+      --ink:#17322b;
+      --muted:#6c7a74;
+      --line:#e8ddd0;
+      --white:#ffffff;
+      --danger:#cf5f5f;
+      --success:#4d9469;
+      --warning:#d99c40;
+      --shadow:0 20px 45px rgba(49,88,69,.12);
+      --radius:24px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;background:linear-gradient(135deg,#fbf7ee,#eef5ec);color:var(--ink)}
+    button,input,textarea,select{font:inherit}
+    .app{min-height:100vh}
+    .login-page{min-height:100vh;display:grid;grid-template-columns:420px 1fr;overflow:hidden;background:radial-gradient(circle at 5% 90%,#f1d7aa55,transparent 22%),linear-gradient(135deg,#fffaf0,#e8f1e7)}
+    .login-brand{padding:54px 46px;position:relative;background:rgba(255,255,255,.55);backdrop-filter:blur(8px);border-right:1px solid rgba(255,255,255,.65)}
+    .leaf{position:absolute;border-radius:55% 45% 55% 45%;background:#b7c8b4;opacity:.55;transform:rotate(-25deg)}
+    .leaf.one{width:90px;height:46px;left:-30px;top:30px}.leaf.two{width:120px;height:58px;left:-42px;bottom:60px;background:#f0d09f}.leaf.three{width:66px;height:34px;right:28px;bottom:100px}
+    .logo-mark{width:118px;height:118px;border:4px solid var(--sage-dark);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:58px;color:var(--sage-dark);margin:24px auto 20px;position:relative}
+    .logo-mark:after{content:'♥';position:absolute;right:6px;top:7px;color:var(--mustard);font-size:24px;background:#fff8;border-radius:50%;padding:2px}
+    .brand-title{text-align:center;letter-spacing:12px;font-size:43px;font-weight:650;color:var(--sage-dark);margin:0 -12px 3px 0}
+    .brand-sub{text-align:center;letter-spacing:3px;font-size:15px;margin:0;color:#243e37}.brand-emr{text-align:center;margin-top:24px;letter-spacing:6px;font-size:16px;color:#3d514b}
+    .pill{background:#f4dfbd;border-radius:999px;padding:18px 22px;text-align:center;margin:28px 0;color:#334c44;box-shadow:inset 0 1px rgba(255,255,255,.8)}
+    .feature-list{display:grid;gap:18px;margin-top:34px}.feature{display:grid;grid-template-columns:42px 1fr;gap:14px;align-items:start}.feature i{width:38px;height:38px;border-radius:16px;background:#fff;box-shadow:0 8px 20px rgba(49,88,69,.08);display:flex;align-items:center;justify-content:center;font-style:normal;color:var(--sage-dark)}
+    .feature b{font-size:14px}.feature p{margin:3px 0 0;color:var(--muted);font-size:12.5px;line-height:1.35}.quote{position:absolute;left:42px;right:42px;bottom:34px;text-align:center;font-family:Georgia,serif;font-size:20px;color:#38584b;transform:rotate(-4deg)}
+    .login-hero{position:relative;padding:56px;display:flex;align-items:center;justify-content:center;background:linear-gradient(90deg,rgba(255,255,255,.1),rgba(255,255,255,.45)),url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="%23f5e8d6"/><stop offset="1" stop-color="%23dce8dc"/></linearGradient></defs><rect fill="url(%23g)" width="900" height="600"/><circle cx="720" cy="150" r="190" fill="%23fff6"/><circle cx="280" cy="450" r="160" fill="%23fff4"/><path d="M90 500 C240 420, 340 540, 490 430 S740 390, 830 500" stroke="%23557a63" stroke-width="18" fill="none" opacity=".18"/><rect x="510" y="95" width="235" height="320" rx="48" fill="%23c9a273" opacity=".18"/><rect x="575" y="160" width="220" height="240" rx="20" fill="%23ffffff" opacity=".45"/><rect x="120" y="150" width="280" height="220" rx="30" fill="%23ffffff" opacity=".42"/></svg>');background-size:cover;background-position:center}
+    .login-card{width:min(540px,90vw);background:rgba(255,255,255,.86);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.72);border-radius:30px;padding:42px;box-shadow:var(--shadow)}
+    .top-date{position:absolute;right:52px;top:38px;font-size:15px}.login-card h1{font-size:36px;margin:0;color:#102923}.login-card h2{font-size:22px;margin:2px 0 20px;color:var(--sage-dark)}.login-card p{color:var(--muted);line-height:1.55}.field{margin:18px 0}.field label{display:block;font-weight:600;margin-bottom:8px}.input{height:52px;border:1px solid #d7dcd6;border-radius:12px;background:#fff;padding:0 16px;width:100%;outline:none}.input:focus{border-color:var(--sage);box-shadow:0 0 0 4px #557a6320}.btn{border:0;border-radius:14px;padding:14px 20px;cursor:pointer;font-weight:700}.btn-primary{background:linear-gradient(135deg,var(--sage),var(--sage-dark));color:white;box-shadow:0 12px 24px #31584533}.btn-outline{background:#fff;border:1px solid #bccac0;color:#223b34}.login-actions{display:grid;gap:12px;margin-top:22px}.small-link{font-size:13px;color:var(--sage-dark);text-align:right;display:block}.feature-strip{position:absolute;bottom:40px;left:56px;right:56px;background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.8);border-radius:22px;display:grid;grid-template-columns:repeat(5,1fr);gap:1px;padding:20px;box-shadow:var(--shadow)}.strip-item{text-align:center;border-right:1px solid #e1ddd2}.strip-item:last-child{border-right:0}.strip-item i{font-style:normal;font-size:28px;color:var(--sage-dark)}.strip-item b{display:block;margin-top:8px;font-size:13px}.strip-item span{display:block;color:var(--muted);font-size:11.5px;margin-top:3px}
+    .main{display:none;min-height:100vh;grid-template-columns:260px 1fr;background:#f7f3eb}.sidebar{background:linear-gradient(180deg,#315845,#254436);color:white;padding:28px 18px;position:sticky;top:0;height:100vh;overflow:auto}.side-logo{display:flex;gap:12px;align-items:center;margin-bottom:26px}.mini-logo{width:54px;height:54px;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px}.side-logo strong{letter-spacing:4px}.side-logo small{display:block;opacity:.8;font-size:11px}.nav{display:grid;gap:7px}.nav button{display:flex;align-items:center;gap:12px;border:0;padding:13px 14px;border-radius:13px;color:white;background:transparent;text-align:left;cursor:pointer}.nav button.active,.nav button:hover{background:#fff;color:var(--sage-dark)}.nav .ico{width:25px;text-align:center}.side-note{position:absolute;bottom:28px;left:22px;right:22px;border-radius:20px;padding:18px;background:rgba(255,255,255,.1);font-size:13px;line-height:1.45}
+    .content{padding:24px 30px 42px;min-width:0}.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.search{width:min(540px,55vw);position:relative}.search input{height:48px;border:0;border-radius:15px;background:#fff;padding:0 18px;width:100%;box-shadow:0 8px 22px rgba(0,0,0,.05)}.profile{display:flex;align-items:center;gap:12px;background:#fff;border-radius:999px;padding:7px 13px;box-shadow:0 8px 22px rgba(0,0,0,.05)}.avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#eed4ab,#cbe0cf);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--sage-dark)}.page{display:none}.page.active{display:block}.page h2{font-size:30px;margin:0 0 6px}.sub{color:var(--muted);margin:0 0 22px}.grid{display:grid;gap:18px}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.card{background:rgba(255,255,255,.86);border:1px solid #fff;border-radius:22px;padding:20px;box-shadow:0 12px 30px rgba(49,88,69,.08)}.stat{display:flex;justify-content:space-between;align-items:start}.stat .num{font-size:30px;font-weight:760;margin:8px 0 2px}.badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;font-size:12px;background:#e6f0e5;color:#2f6848}.badge.warn{background:#fff2d8;color:#986322}.badge.danger{background:#ffe4e4;color:#a34b4b}.card h3{margin:0 0 14px;font-size:17px}.two-col{grid-template-columns:1.2fr .8fr}.three-col{grid-template-columns:repeat(3,minmax(0,1fr))}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:13px 10px;border-bottom:1px solid var(--line);font-size:14px}.table th{color:#6a766f;font-size:12px;text-transform:uppercase;letter-spacing:.6px}.row-click{cursor:pointer}.row-click:hover{background:#fbf8ef}.timeline{display:grid;gap:10px}.timeline .item{display:grid;grid-template-columns:60px 1fr auto;align-items:center;gap:12px;padding:12px;border-radius:15px;background:#fbfaf6}.module-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.textarea{min-height:92px;border:1px solid #d7dcd6;border-radius:12px;background:#fff;padding:14px;width:100%;resize:vertical}.tabs{display:flex;gap:8px;border-bottom:1px solid var(--line);margin:16px 0 20px;overflow:auto}.tabs span{padding:12px 10px;border-bottom:3px solid transparent;color:#6a766f;white-space:nowrap}.tabs span.active{border-color:var(--sage-dark);color:var(--sage-dark);font-weight:700}.patient-hero{display:grid;grid-template-columns:auto 1fr auto;gap:22px;align-items:center}.patient-photo{width:118px;height:118px;border-radius:36px;background:linear-gradient(135deg,#f2dbb5,#d6e6d8);display:flex;align-items:center;justify-content:center;font-size:48px}.info-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:18px}.info-row div{border-left:1px solid var(--line);padding-left:15px}.info-row small{display:block;color:var(--muted);font-size:12px}.info-row b{display:block;margin-top:4px}.chart{height:220px;border-radius:18px;background:linear-gradient(180deg,#fff,#fbf8f0);border:1px solid #eee4d8;padding:12px}.bar-chart{display:flex;align-items:end;gap:16px;height:155px;padding:0 8px}.bar{flex:1;background:linear-gradient(180deg,var(--sage),#9eb89f);border-radius:10px 10px 0 0;min-height:20px;position:relative}.bar span{position:absolute;bottom:-24px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--muted)}.progress-list{display:grid;gap:10px}.progress-list .pitem{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}.screen-note{background:#fff8e7;border:1px solid #ecd7a4;color:#72501c;border-radius:18px;padding:14px 16px;margin-bottom:18px;font-size:13.5px}.footer{margin-top:26px;color:#95a099;font-size:12px}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.print-card{background:#fff;border-radius:18px;border:1px solid var(--line);padding:24px;min-height:420px}.report-head{text-align:center;border-bottom:1px solid var(--line);padding-bottom:18px}.report-logo{font-size:28px;color:var(--sage-dark);letter-spacing:4px;font-weight:700}.hidden{display:none!important}
+    @media(max-width:1000px){.login-page{grid-template-columns:1fr}.login-brand{display:none}.feature-strip{display:none}.main{grid-template-columns:1fr}.sidebar{height:auto;position:relative}.side-note{position:static;margin-top:18px}.cards,.two-col,.three-col,.form-grid,.info-row{grid-template-columns:1fr}.patient-hero{grid-template-columns:1fr}.topbar{display:grid;gap:12px}.search{width:100%}}
+  </style>
+</head>
+<body>
+  <div id="login" class="login-page">
+    <aside class="login-brand">
+      <div class="leaf one"></div><div class="leaf two"></div><div class="leaf three"></div>
+      <div class="logo-mark">♡</div>
+      <h1 class="brand-title">ASAKITA</h1>
+      <p class="brand-sub">Child Development<br>& Therapy Center</p>
+      <p class="brand-emr">ELEKTRONIK MEDICAL RECORD</p>
+      <div class="pill">Tumbuh Bersama,<br>Langkah Kecil untuk Masa Depan yang Besar 💛</div>
+      <div class="feature-list">
+        <div class="feature"><i>♡</i><div><b>Terintegrasi</b><p>Data pasien, jadwal, pemeriksaan, terapi, dan laporan dalam satu tempat.</p></div></div>
+        <div class="feature"><i>👥</i><div><b>Mendukung Kolaborasi</b><p>Dokter, terapis, admin, dan owner dapat bekerja sesuai aksesnya.</p></div></div>
+        <div class="feature"><i>▥</i><div><b>Fokus Perkembangan</b><p>Catatan progress anak, target terapi, dan milestone lebih mudah dipantau.</p></div></div>
+        <div class="feature"><i>🛡</i><div><b>Aman & Rahasia</b><p>Konsep akses user, audit trail, dan backup disiapkan dari awal.</p></div></div>
+      </div>
+      <div class="quote">Setiap Anak<br>Berkembang dengan<br>Caranya Sendiri 💛</div>
+    </aside>
+    <main class="login-hero">
+      <div class="top-date">Rabu, 25 Juni 2026 &nbsp; | &nbsp; <b>08:24</b></div>
+      <section class="login-card">
+        <h1>Selamat Datang</h1>
+        <h2>di Asakita EMR Lite</h2>
+        <p>Sistem rekam medis dan manajemen terapi untuk klinik tumbuh kembang anak. Prototype ini bersifat demo dan belum menyimpan data pasien.</p>
+        <div class="field"><label>Email / Username</label><input class="input" value="dokter@asakita.demo" /></div>
+        <div class="field"><label>Password</label><input class="input" type="password" value="prototype" /></div>
+        <a class="small-link">Lupa Password?</a>
+        <div class="login-actions">
+          <button class="btn btn-primary" onclick="enterApp()">Masuk →</button>
+          <button class="btn btn-outline" onclick="enterApp()">Masuk dengan Akun Google</button>
+        </div>
+      </section>
+      <div class="feature-strip">
+        <div class="strip-item"><i>🗂</i><b>Data Pasien</b><span>Profil & riwayat anak</span></div>
+        <div class="strip-item"><i>📅</i><b>Jadwal</b><span>Konsultasi & terapi</span></div>
+        <div class="strip-item"><i>🩺</i><b>SOAP</b><span>Catatan dokter</span></div>
+        <div class="strip-item"><i>📈</i><b>Progress</b><span>Tumbuh kembang</span></div>
+        <div class="strip-item"><i>📄</i><b>Laporan</b><span>Resume untuk orang tua</span></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="main" class="main">
+    <aside class="sidebar">
+      <div class="side-logo"><div class="mini-logo">♡</div><div><strong>ASAKITA</strong><small>EMR Lite Prototype</small></div></div>
+      <nav class="nav">
+        <button class="active" data-page="dashboard"><span class="ico">⌂</span>Dashboard</button>
+        <button data-page="pasien"><span class="ico">👤</span>Data Pasien</button>
+        <button data-page="jadwal"><span class="ico">📅</span>Jadwal Pasien</button>
+        <button data-page="soap"><span class="ico">🩺</span>Pemeriksaan Dokter / SOAP</button>
+        <button data-page="terapi"><span class="ico">🧩</span>Catatan Terapi</button>
+        <button data-page="progress"><span class="ico">📈</span>Tumbuh Kembang</button>
+        <button data-page="laporan"><span class="ico">📄</span>Laporan & Dokumen</button>
+        <button data-page="akses"><span class="ico">🔐</span>Role & Akses User</button>
+      </nav>
+      <div class="side-note">Prototype UI/Flow sample. Belum production, belum menyimpan data, dan belum terintegrasi SATUSEHAT.</div>
+    </aside>
+    <main class="content">
+      <header class="topbar">
+        <div class="search"><input placeholder="Cari nama pasien, nomor RM, jadwal, atau menu..." /></div>
+        <div class="profile"><div class="avatar">DI</div><div><b>dr. Imelda</b><br><small>Dokter / Owner</small></div><button class="btn btn-outline" onclick="logout()">Keluar</button></div>
+      </header>
+
+      <section id="dashboard" class="page active">
+        <h2>Dashboard</h2><p class="sub">Ringkasan operasional harian Asakita.</p>
+        <div class="screen-note">Flow demo: pilih menu di sidebar, klik baris pasien di Dashboard/Data Pasien, atau gunakan tombol “Buat Kunjungan”.</div>
+        <div class="grid cards">
+          <div class="card stat"><div><small>Total Pasien</small><div class="num">248</div><span class="badge">+12 bulan ini</span></div><div>👥</div></div>
+          <div class="card stat"><div><small>Jadwal Hari Ini</small><div class="num">18</div><span class="badge warn">6 menunggu</span></div><div>📅</div></div>
+          <div class="card stat"><div><small>Sesi Terapi</small><div class="num">14</div><span class="badge">10 selesai</span></div><div>🧩</div></div>
+          <div class="card stat"><div><small>Perlu Follow Up</small><div class="num">7</div><span class="badge danger">Prioritas</span></div><div>🔔</div></div>
+        </div>
+        <div class="grid two-col" style="margin-top:18px">
+          <div class="card"><div class="module-title"><h3>Jadwal Hari Ini</h3><button class="btn btn-primary" onclick="showPage('jadwal')">Lihat jadwal</button></div><div class="timeline">
+            <div class="item row-click" onclick="showPage('pasien')"><b>08:00</b><div><b>Alya Rahma</b><br><small>Konsultasi dokter</small></div><span class="badge">Selesai</span></div>
+            <div class="item row-click" onclick="showPage('terapi')"><b>09:00</b><div><b>Rafa Pratama</b><br><small>Terapi okupasi</small></div><span class="badge warn">Berjalan</span></div>
+            <div class="item row-click" onclick="showPage('soap')"><b>10:00</b><div><b>Ananda Putra</b><br><small>Assessment awal</small></div><span class="badge">Akan datang</span></div>
+            <div class="item"><b>13:00</b><div><b>Naya Azzahra</b><br><small>Terapi wicara</small></div><span class="badge">Akan datang</span></div>
+          </div></div>
+          <div class="card"><h3>Grafik Pasien Bulanan</h3><div class="chart"><div class="bar-chart"><div class="bar" style="height:45%"><span>Jan</span></div><div class="bar" style="height:58%"><span>Feb</span></div><div class="bar" style="height:66%"><span>Mar</span></div><div class="bar" style="height:75%"><span>Apr</span></div><div class="bar" style="height:83%"><span>Mei</span></div><div class="bar" style="height:92%"><span>Jun</span></div></div></div></div>
+        </div>
+        <div class="grid three-col" style="margin-top:18px">
+          <div class="card"><h3>Notifikasi</h3><p>3 laporan terapi perlu diselesaikan hari ini.</p><p>2 pasien perlu follow up bulan ini.</p></div>
+          <div class="card"><h3>Quick Action</h3><button class="btn btn-primary" onclick="showPage('pasien')">+ Tambah Pasien</button> <button class="btn btn-outline" onclick="showPage('jadwal')">+ Buat Jadwal</button></div>
+          <div class="card"><h3>Status Sistem</h3><p><span class="badge">Demo Mode</span></p><p class="sub">Tidak ada data tersimpan permanen di prototype ini.</p></div>
+        </div>
+      </section>
+
+      <section id="pasien" class="page">
+        <h2>Data Pasien</h2><p class="sub">Detail biodata anak, orang tua, riwayat medis, dan dokumen pendukung.</p>
+        <div class="card patient-hero"><div class="patient-photo">🙂</div><div><h2 style="margin:0">Ananda Putra</h2><span class="badge">Pasien Aktif</span><span class="badge warn">2 tahun 4 bulan</span><div class="info-row"><div><small>No. RM</small><b>0001248</b></div><div><small>Tanggal Lahir</small><b>12 Apr 2024</b></div><div><small>Jenis Kelamin</small><b>Laki-laki</b></div><div><small>Gol. Darah</small><b>O</b></div><div><small>Kontak Orang Tua</small><b>+62 823-xxxx-xxxx</b></div></div></div><button class="btn btn-primary" onclick="showPage('soap')">+ Buat Kunjungan</button></div>
+        <div class="tabs"><span class="active">Ringkasan</span><span>Data Pribadi</span><span>Riwayat Medis</span><span>Catatan</span><span>Dokumen</span><span>Billing</span></div>
+        <div class="grid three-col">
+          <div class="card"><h3>Informasi Utama</h3><table class="table"><tr><td>Nama Lengkap</td><td><b>Ananda Putra</b></td></tr><tr><td>Nama Panggilan</td><td>Ananda</td></tr><tr><td>Alamat</td><td>Sorowako, Luwu Timur</td></tr><tr><td>Asuransi</td><td>Pribadi</td></tr></table></div>
+          <div class="card"><h3>Riwayat Medis</h3><p><b>Riwayat Kelahiran</b><br>Lahir cukup bulan, BB 3.1 kg, PB 49 cm.</p><p><b>Catatan Khusus</b><br>Perlu pemantauan bahasa dan interaksi sosial.</p></div>
+          <div class="card"><h3>Dokumen Penting</h3><p>📄 Akte Kelahiran.pdf</p><p>📄 Hasil Assessment.pdf</p><p>📄 Surat Rujukan.pdf</p><button class="btn btn-outline">+ Upload Dokumen</button></div>
+        </div>
+      </section>
+
+      <section id="jadwal" class="page">
+        <h2>Jadwal Pasien</h2><p class="sub">Manajemen jadwal konsultasi dokter dan sesi terapi.</p>
+        <div class="card"><div class="module-title"><h3>Kalender Mingguan</h3><button class="btn btn-primary">+ Tambah Jadwal</button></div><table class="table"><thead><tr><th>Waktu</th><th>Pasien</th><th>Layanan</th><th>Ruang</th><th>Tenaga Medis</th><th>Status</th></tr></thead><tbody>
+          <tr class="row-click" onclick="showPage('soap')"><td>08:00</td><td>Alya Rahma</td><td>Konsultasi Dokter</td><td>R. Konsultasi</td><td>dr. Imelda</td><td><span class="badge">Selesai</span></td></tr>
+          <tr><td>09:00</td><td>Rafa Pratama</td><td>Terapi Okupasi</td><td>R. Terapi 1</td><td>Terapis Okupasi</td><td><span class="badge warn">Berjalan</span></td></tr>
+          <tr><td>10:00</td><td>Ananda Putra</td><td>Assessment Awal</td><td>R. Konsultasi</td><td>dr. Imelda</td><td><span class="badge">Akan datang</span></td></tr>
+          <tr><td>13:00</td><td>Naya Azzahra</td><td>Terapi Wicara</td><td>R. Terapi 2</td><td>Terapis Wicara</td><td><span class="badge">Akan datang</span></td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section id="soap" class="page">
+        <h2>Pemeriksaan Dokter / SOAP</h2><p class="sub">Catatan pemeriksaan dokter dengan format Subjective, Objective, Assessment, Plan.</p>
+        <div class="card"><div class="form-grid"><div class="field"><label>Tanggal</label><input class="input" value="25 Juni 2026"></div><div class="field"><label>Jenis Kunjungan</label><select class="input"><option>Konsultasi Tumbuh Kembang</option><option>Assessment Awal</option><option>Kontrol</option></select></div></div>
+          <div class="grid two-col"><div class="field"><label>S — Subjective</label><textarea class="textarea">Orang tua menyampaikan anak belum banyak bicara, kontak mata belum konsisten, dan mudah terdistraksi.</textarea></div><div class="field"><label>O — Objective</label><textarea class="textarea">Anak aktif, kooperatif sebagian, respon terhadap panggilan perlu evaluasi lanjut.</textarea></div><div class="field"><label>A — Assessment</label><textarea class="textarea">Suspect speech delay. Perlu evaluasi tumbuh kembang dan observasi lanjutan.</textarea></div><div class="field"><label>P — Plan</label><textarea class="textarea">Rekomendasi terapi wicara 2x/minggu, monitoring perkembangan 1 bulan, edukasi stimulasi di rumah.</textarea></div></div>
+          <button class="btn btn-primary" onclick="showPage('terapi')">Simpan & Lanjut ke Rencana Terapi</button> <button class="btn btn-outline">Simpan Draft</button></div>
+      </section>
+
+      <section id="terapi" class="page">
+        <h2>Catatan Terapi</h2><p class="sub">Progress tiap sesi terapi, target aktivitas, respon anak, dan rekomendasi latihan rumah.</p>
+        <div class="card"><div class="form-grid"><div class="field"><label>Tanggal Sesi</label><input class="input" value="25 Juni 2026"></div><div class="field"><label>Jenis Terapi</label><select class="input"><option>Terapi Wicara</option><option>Terapi Okupasi</option><option>Terapi Sensori Integrasi</option></select></div></div>
+        <div class="field"><label>Target Terapi</label><input class="input" value="Meningkatkan kemampuan verbal dan respon komunikasi sederhana"></div>
+        <div class="grid two-col"><div class="card"><h3>Aktivitas Dilakukan</h3><p>☑ Latihan imitasi suara</p><p>☑ Latihan kontak mata</p><p>☑ Latihan instruksi sederhana</p></div><div class="card"><h3>Evaluasi Sesi</h3><p><b>Respon Anak:</b> Anak mulai merespon 3 dari 5 instruksi sederhana.</p><p><b>Rekomendasi:</b> Latihan kosakata dasar 10 menit per hari.</p></div></div>
+        <br><button class="btn btn-primary" onclick="showPage('progress')">Simpan Progress</button></div>
+      </section>
+
+      <section id="progress" class="page">
+        <h2>Tumbuh Kembang & Progress</h2><p class="sub">Monitoring berat badan, tinggi badan, milestone, dan pencapaian program terapi.</p>
+        <div class="grid two-col"><div class="card"><h3>Kurva Pertumbuhan</h3><div class="chart"><svg viewBox="0 0 520 170" width="100%" height="100%"><line x1="40" y1="140" x2="500" y2="140" stroke="#ddd"/><line x1="40" y1="20" x2="40" y2="140" stroke="#ddd"/><path d="M45 125 C160 90 280 68 495 45" fill="none" stroke="#557a63" stroke-width="4"/><path d="M45 140 C160 112 280 92 495 75" fill="none" stroke="#e7b75f" stroke-width="2"/><circle cx="242" cy="78" r="7" fill="#315845"/><text x="260" y="75" fill="#17322b" font-size="14">12.4 kg</text></svg></div></div><div class="card"><h3>Milestone Perkembangan</h3><div class="progress-list"><div class="pitem"><span>Kontak mata</span><span class="badge warn">Proses</span></div><div class="pitem"><span>Instruksi 1 langkah</span><span class="badge">Tercapai</span></div><div class="pitem"><span>Kosakata ekspresif</span><span class="badge warn">Proses</span></div><div class="pitem"><span>Interaksi sosial</span><span class="badge warn">Proses</span></div></div></div></div>
+        <div class="grid three-col" style="margin-top:18px"><div class="card"><h3>Terapi Wicara</h3><p>1x/minggu</p><span class="badge">Sedang berjalan</span></div><div class="card"><h3>Terapi Okupasi</h3><p>1x/minggu</p><span class="badge">Sedang berjalan</span></div><div class="card"><h3>Sensori Integrasi</h3><p>Sesuai kebutuhan</p><span class="badge warn">Observasi</span></div></div>
+      </section>
+
+      <section id="laporan" class="page">
+        <h2>Laporan & Dokumen</h2><p class="sub">Generate resume medis/terapi, laporan perkembangan, dan dokumen untuk orang tua.</p>
+        <div class="grid two-col"><div class="print-card"><div class="report-head"><div class="report-logo">ASAKITA</div><small>Child Development & Therapy Center</small><h3>Resume Perkembangan Anak</h3></div><p><b>Pasien:</b> Ananda Putra</p><p><b>Periode:</b> Juni 2026</p><p><b>Ringkasan:</b> Anak menunjukkan peningkatan respon instruksi sederhana dan mulai mengikuti aktivitas terapi dengan arahan minimal.</p><p><b>Rekomendasi:</b> Melanjutkan terapi wicara, stimulasi kosakata harian, dan evaluasi dalam 4 minggu.</p></div><div class="card"><h3>Aksi Dokumen</h3><p><button class="btn btn-primary">Download PDF</button></p><p><button class="btn btn-outline">Kirim ke Email Orang Tua</button></p><p><button class="btn btn-outline">Cetak</button></p><p><button class="btn btn-outline">Simpan ke Dokumen Pasien</button></p></div></div>
+      </section>
+
+      <section id="akses" class="page">
+        <h2>Role & Akses User</h2><p class="sub">Kontrol akses berdasarkan peran dokter, terapis, admin, dan owner.</p>
+        <div class="card"><div class="module-title"><h3>Daftar Pengguna</h3><button class="btn btn-primary">+ Tambah User</button></div><table class="table"><thead><tr><th>Nama</th><th>Role</th><th>Akses Utama</th><th>Status</th></tr></thead><tbody><tr><td>dr. Imelda</td><td>Dokter / Owner</td><td>Semua modul</td><td><span class="badge">Aktif</span></td></tr><tr><td>Terapis Wicara</td><td>Terapis</td><td>Jadwal, Catatan Terapi, Progress</td><td><span class="badge">Aktif</span></td></tr><tr><td>Admin Front Office</td><td>Admin</td><td>Pasien, Jadwal, Dokumen</td><td><span class="badge">Aktif</span></td></tr><tr><td>Owner</td><td>Manajemen</td><td>Dashboard & Laporan</td><td><span class="badge">Aktif</span></td></tr></tbody></table></div>
+      </section>
+      <div class="footer">Asakita EMR Lite Prototype v0.1 — UI flow sample only.</div>
+    </main>
+  </div>
+
+  <script>
+    function enterApp(){document.getElementById('login').style.display='none';document.getElementById('main').style.display='grid';}
+    function logout(){document.getElementById('main').style.display='none';document.getElementById('login').style.display='grid';}
+    function showPage(id){
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    document.querySelectorAll('.nav button').forEach(btn=>btn.addEventListener('click',()=>showPage(btn.dataset.page)));
+  </script>
+</body>
+</html>

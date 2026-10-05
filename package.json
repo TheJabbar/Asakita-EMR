@@ -1,0 +1,21 @@
+{
+  "name": "asakita",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:api": "npm run dev -w apps/api",
+    "dev:emr": "npm run dev -w apps/emr",
+    "dev:portal": "npm run dev -w apps/portal",
+    "build": "npm run build -w packages/shared && npm run build -w apps/emr && npm run build -w apps/portal",
+    "check": "npx tsc --noEmit -p tsconfig.json",
+    "test:unit": "node --test apps/api/test/unit/api.test.mjs apps/api/test/unit/portal.test.mjs && npx vitest run packages/shared/test",
+    "test:security": "node --test apps/api/test/security/security.test.mjs",
+    "db:migrate": "npm run migrate -w apps/api",
+    "db:seed": "npm run seed -w apps/api"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

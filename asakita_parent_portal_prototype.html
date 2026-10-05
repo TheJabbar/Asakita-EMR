@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asakita Child Health Center - Parent Portal Prototype</title>
+  <style>
+    :root{
+      --green:#2f5f4b;
+      --green-2:#5f8c75;
+      --sage:#dcebdd;
+      --sage-2:#ecf5ed;
+      --cream:#fffaf0;
+      --card:#ffffff;
+      --peach:#ffe7d7;
+      --yellow:#f7c86d;
+      --blue:#dff0ff;
+      --pink:#ffe2e8;
+      --ink:#1f2933;
+      --muted:#6b7280;
+      --line:#e8e2d8;
+      --shadow: 0 18px 45px rgba(39,62,51,.14);
+      --soft-shadow:0 10px 25px rgba(45,78,64,.10);
+      --radius:24px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(247,200,109,.28), transparent 28%),
+        radial-gradient(circle at 85% 20%, rgba(95,140,117,.22), transparent 25%),
+        linear-gradient(135deg,#fdf6e9,#edf6ef 55%,#fff8ed);
+      color:var(--ink);
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+      padding:28px 12px;
+    }
+    .workspace{
+      width:min(1160px,100%);
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:22px;
+      align-items:start;
+    }
+    .phone{
+      width:420px;
+      max-width:100%;
+      margin:0 auto;
+      border:12px solid #1f2a2e;
+      border-radius:42px;
+      background:#fdfbf6;
+      box-shadow:0 25px 65px rgba(26,38,33,.28);
+      overflow:hidden;
+      min-height:840px;
+      position:sticky;
+      top:18px;
+    }
+    .statusbar{
+      height:32px;
+      background:#fbfaf6;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 22px;
+      font-size:12px;
+      font-weight:700;
+      color:#111827;
+      border-bottom:1px solid rgba(0,0,0,.04);
+    }
+    .notch{
+      position:absolute;
+      top:10px;
+      left:50%;
+      transform:translateX(-50%);
+      width:126px;
+      height:24px;
+      background:#1f2a2e;
+      border-radius:0 0 18px 18px;
+      z-index:5;
+    }
+    .screen{
+      display:none;
+      min-height:808px;
+      background:#fbfaf6;
+      padding:18px 18px 88px;
+      position:relative;
+    }
+    .screen.active{display:block; animation:fade .2s ease-in-out}
+    @keyframes fade{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    .hero-login{
+      min-height:808px;
+      padding:34px 22px 28px;
+      background:
+        radial-gradient(circle at 15% 5%, #fce5cc 0 65px, transparent 66px),
+        radial-gradient(circle at 90% 12%, #dfeee4 0 74px, transparent 75px),
+        radial-gradient(circle at 0 100%, #e8f3ea 0 92px, transparent 94px),
+        linear-gradient(#fffaf1,#fffdf8);
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+    }
+    .brand-logo{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-top:18px;
+    }
+    .logo-mark{
+      width:66px;height:66px;border-radius:24px;
+      background:linear-gradient(160deg,#eff8ef,#fff6e8);
+      border:1px solid #d9e9dd;
+      display:grid;place-items:center;
+      color:var(--green);
+      font-size:34px;
+      box-shadow:var(--soft-shadow);
+    }
+    .brand-title{font-size:25px;letter-spacing:5px;font-weight:800;color:var(--green);line-height:1}
+    .brand-sub{font-size:12px;color:#42554b;margin-top:5px;letter-spacing:.5px}
+    .login-visual{
+      flex:1;
+      border-radius:30px;
+      background:
+        linear-gradient(rgba(255,255,255,.58),rgba(255,255,255,.55)),
+        radial-gradient(circle at 70% 20%,#f9d89a 0 46px, transparent 47px),
+        radial-gradient(circle at 30% 78%,#b8d9c0 0 55px, transparent 56px),
+        linear-gradient(135deg,#f9efe3,#edf8f0);
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      padding:26px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+    .login-visual:before{
+      content:"";position:absolute;right:-44px;bottom:-58px;width:180px;height:180px;border-radius:50%;background:rgba(95,140,117,.18)
+    }
+    .login-visual .tagline{font-size:26px;line-height:1.15;font-weight:750;color:#1d3d31;margin-top:8px}
+    .illustration{
+      height:180px;border-radius:28px;margin:18px 0;
+      background:
+        radial-gradient(circle at 50% 50%,rgba(255,255,255,.86),rgba(255,255,255,.18)),
+        linear-gradient(135deg,#ffe7d7,#e3f1e5);
+      display:grid;place-items:center;font-size:92px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.6);
+    }
+    .login-actions{display:flex;flex-direction:column;gap:12px;z-index:1}
+    .btn{
+      width:100%; border:0; border-radius:16px; padding:15px 18px; font-weight:750; font-size:15px; cursor:pointer;
+      transition:.18s ease; display:flex; align-items:center; justify-content:center; gap:8px;
+    }
+    .btn:hover{transform:translateY(-1px);filter:brightness(.98)}
+    .btn-primary{background:var(--green);color:white;box-shadow:0 10px 20px rgba(47,95,75,.22)}
+    .btn-outline{background:white;color:var(--green);border:1px solid #cddbd1}
+    .btn-soft{background:#edf5ed;color:var(--green);border:1px solid #dcebdd}
+    .btn-danger{background:#ffe2e2;color:#b42318;border:1px solid #ffd0d0}
+    .small-link{font-size:12px;color:var(--green);text-decoration:underline;cursor:pointer;text-align:center}
+    .topbar{
+      display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;
+    }
+    .topbar h1{font-size:20px;margin:0;color:#111827;letter-spacing:-.3px}
+    .topbar .sub{font-size:12px;color:var(--muted);margin-top:3px}
+    .icon-btn{width:40px;height:40px;border-radius:14px;border:1px solid #e6e0d6;background:white;display:grid;place-items:center;cursor:pointer;box-shadow:var(--soft-shadow);font-size:18px}
+    .user-greeting{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+    .avatar{width:58px;height:58px;border-radius:20px;background:linear-gradient(135deg,#ffe5ce,#cde5d2);display:grid;place-items:center;font-size:30px;box-shadow:var(--soft-shadow)}
+    .greet h2{font-size:22px;margin:0 0 4px;color:#14261f}.greet p{margin:0;color:var(--muted);font-size:13px;line-height:1.35}
+    .child-card{
+      background:white;border:1px solid #ece5dc;border-radius:24px;padding:16px;box-shadow:var(--soft-shadow);margin-bottom:16px;
+      display:flex;align-items:center;gap:13px;cursor:pointer;
+    }
+    .child-photo{width:68px;height:68px;border-radius:22px;background:linear-gradient(135deg,#dfeee4,#ffe7d7);display:grid;place-items:center;font-size:36px;flex:none}
+    .child-card h3{margin:0;font-size:17px}.child-card p{margin:5px 0 0;color:var(--muted);font-size:12px}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent}
+    .pill.green{background:#e5f4e7;color:#277245;border-color:#cce8d1}.pill.orange{background:#fff0d7;color:#9a5b00;border-color:#ffdda4}.pill.blue{background:#e7f3ff;color:#2563a6;border-color:#cfe7ff}.pill.red{background:#ffe7e7;color:#b42318;border-color:#ffcfcf}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+    .tile{background:white;border:1px solid #ece5dc;border-radius:22px;padding:14px;box-shadow:var(--soft-shadow);min-height:108px;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between}.tile .emoji{font-size:26px}.tile h4{margin:8px 0 4px;font-size:14px}.tile p{font-size:11px;color:var(--muted);margin:0;line-height:1.35}.tile.green{background:#ecf6ee}.tile.yellow{background:#fff8e8}.tile.blue{background:#eef7ff}.tile.pink{background:#fff0f3}
+    .section-title{display:flex;align-items:center;justify-content:space-between;margin:16px 0 10px}.section-title h3{font-size:15px;margin:0}.section-title span{font-size:12px;color:var(--green);font-weight:750}
+    .article-card,.row-card{display:flex;gap:12px;align-items:center;background:white;border:1px solid #ece5dc;border-radius:20px;padding:12px;margin-bottom:10px;box-shadow:var(--soft-shadow);cursor:pointer}.thumb{width:58px;height:58px;border-radius:18px;background:linear-gradient(135deg,#f7d49b,#cbe3d1);display:grid;place-items:center;font-size:28px;flex:none}.row-card .info{flex:1}.row-card h4,.article-card h4{margin:0;font-size:14px}.row-card p,.article-card p{font-size:12px;color:var(--muted);margin:4px 0 0;line-height:1.3}
+    .tabs{display:flex;gap:8px;margin:12px 0 14px;overflow:auto;padding-bottom:2px}.tab{border:0;border-radius:999px;padding:10px 14px;background:#f1f0ec;color:#5c665f;font-weight:750;font-size:12px;white-space:nowrap;cursor:pointer}.tab.active{background:var(--green);color:white}
+    .info-table{background:white;border:1px solid #ece5dc;border-radius:24px;box-shadow:var(--soft-shadow);overflow:hidden;margin-bottom:14px}.info-table .tr{display:flex;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #f0ece4;font-size:13px}.info-table .tr:last-child{border-bottom:0}.info-table .label{color:var(--muted)}.info-table .value{font-weight:700;text-align:right}
+    .appt-date{width:60px;border-radius:18px;background:#fff0e5;color:#c45c22;text-align:center;padding:10px;font-weight:800;flex:none}.appt-date b{font-size:22px;display:block;line-height:1}.calendar{background:white;border:1px solid #ece5dc;border-radius:24px;padding:14px;box-shadow:var(--soft-shadow)}.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center;font-size:12px;color:#6b7280}.cal-grid div{padding:7px 0;border-radius:10px}.cal-grid .active{background:var(--green);color:white;font-weight:800}
+    .chart-card{background:white;border:1px solid #ece5dc;border-radius:24px;padding:16px;box-shadow:var(--soft-shadow);margin-bottom:14px}.chart-value{background:#e5f4e7;border-radius:20px;padding:16px;margin-bottom:14px;text-align:center}.chart-value b{font-size:28px;color:var(--green)}.chart-area{height:210px;border-left:1px solid #d9d4ca;border-bottom:1px solid #d9d4ca;position:relative;margin:16px 4px 12px;background:repeating-linear-gradient(to top,#faf8f3,#faf8f3 34px,#f0ece4 35px),repeating-linear-gradient(to right,transparent,transparent 45px,#f0ece4 46px)}.curve{position:absolute;left:18px;right:12px;height:3px;border-radius:4px;background:var(--green);transform:rotate(-12deg);top:102px}.curve.light{top:70px;background:#b8d9c0}.curve.orange{top:135px;background:#f0c36d}.point{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--green);border:3px solid white;box-shadow:0 2px 7px rgba(0,0,0,.18);left:194px;top:96px}.chart-note{font-size:12px;color:#59655e;background:#fff8e9;padding:12px;border-radius:16px;line-height:1.4}
+    .screening-row{background:white;border:1px solid #ece5dc;border-radius:20px;padding:13px;margin-bottom:10px;display:flex;gap:12px;align-items:center;box-shadow:var(--soft-shadow)}.screening-row .ico{width:46px;height:46px;border-radius:16px;display:grid;place-items:center;font-size:23px;background:#eef7ff}.screening-row .text{flex:1}.screening-row h4{margin:0;font-size:14px}.screening-row p{font-size:12px;color:var(--muted);margin:4px 0 0}
+    .progress{height:10px;background:#edf0ea;border-radius:999px;overflow:hidden}.progress i{display:block;height:100%;background:var(--green);border-radius:999px}.summary-card{background:white;border:1px solid #ece5dc;border-radius:22px;padding:15px;margin-bottom:12px;box-shadow:var(--soft-shadow)}.summary-card h4{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px}.recommendation{background:white;border:1px solid #ece5dc;border-radius:18px;padding:12px;margin-bottom:10px;display:flex;gap:10px;align-items:center}
+    .report-cover{background:white;border:1px solid #ece5dc;border-radius:28px;padding:22px;box-shadow:var(--shadow);text-align:center;margin-bottom:14px}.report-logo{font-size:44px;color:var(--green)}.report-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.report-tabs .mini{background:#eff7ef;border-radius:16px;padding:11px 6px;font-size:11px;color:var(--green);font-weight:800}
+    .bottom-nav{position:absolute;left:0;right:0;bottom:0;height:74px;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);border-top:1px solid #ece5dc;display:grid;grid-template-columns:repeat(5,1fr);padding:8px 12px 10px;gap:6px}.nav-item{border:0;background:transparent;border-radius:16px;color:#7a837e;font-size:10px;font-weight:750;display:flex;flex-direction:column;gap:3px;align-items:center;justify-content:center;cursor:pointer}.nav-item span{font-size:20px}.nav-item.active{background:#ecf6ee;color:var(--green)}
+    .notes-panel{background:white;border:1px solid #ece5dc;border-radius:32px;padding:24px;box-shadow:var(--shadow)}.notes-panel h2{margin:0 0 6px;color:var(--green);font-size:24px}.notes-panel p{color:#59655e;line-height:1.55}.flow-list{display:grid;gap:10px;margin-top:18px}.flow-item{display:flex;align-items:center;gap:12px;background:#fbfaf6;border:1px solid #ede6dc;border-radius:18px;padding:13px;cursor:pointer}.flow-item:hover{background:#f1f8f2}.flow-item b{width:30px;height:30px;border-radius:12px;background:var(--green);color:white;display:grid;place-items:center;font-size:12px}.flow-item div{font-weight:750}.flow-item small{display:block;color:var(--muted);font-weight:500;margin-top:2px}.scope{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:20px}.scope-card{border-radius:20px;background:#fbfaf6;border:1px solid #ede6dc;padding:14px}.scope-card h4{margin:0 0 6px;color:#173f32}.scope-card p{margin:0;font-size:12px;color:var(--muted)}
+    .back-title{display:flex;align-items:center;gap:10px;margin-bottom:16px}.back-title h1{font-size:19px;margin:0}.back-title p{margin:3px 0 0;color:var(--muted);font-size:12px}.back{border:0;background:white;width:38px;height:38px;border-radius:14px;box-shadow:var(--soft-shadow);cursor:pointer;font-size:18px}
+    .mock-form{display:grid;gap:10px}.mock-input{background:white;border:1px solid #e3ddd4;border-radius:15px;padding:12px 14px;color:#8a8f8a;font-size:13px}.quote{font-family:Georgia,serif;font-style:italic;color:#5e6b62;text-align:center;margin-top:15px;font-size:14px;line-height:1.5}
+    @media(max-width:900px){body{padding:10px}.workspace{grid-template-columns:1fr}.phone{position:relative;top:auto}.notes-panel{order:-1}.scope{grid-template-columns:1fr}}
+    @media(max-width:430px){.phone{border:0;border-radius:0;width:100%;min-height:100vh}.notch,.statusbar{display:none}.screen{min-height:100vh}.hero-login{min-height:100vh}.workspace{gap:0}.notes-panel{display:none}body{padding:0}}
+  </style>
+</head>
+<body>
+  <div class="workspace">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span>●●●  5G  🔋</span></div>
+
+      <section class="screen active hero-login" id="login">
+        <div class="brand-logo">
+          <div class="logo-mark">♡</div>
+          <div><div class="brand-title">ASAKITA</div><div class="brand-sub">Child Health Center<br>by dr. Imelda Hady, Sp.A</div></div>
+        </div>
+        <div class="login-visual">
+          <div>
+            <div class="tagline">Tumbuh Bersama,<br/>Menuju Generasi Hebat</div>
+            <p style="color:#657169;font-size:13px;line-height:1.5;max-width:280px">Parent portal untuk pantau tumbuh kembang anak, jadwal kunjungan, edukasi ASI/MPASI, dan rekomendasi stimulasi harian.</p>
+          </div>
+          <div class="illustration">👩‍🍼</div>
+          <div class="login-actions">
+            <button class="btn btn-primary" onclick="go('dashboard')">Masuk</button>
+            <button class="btn btn-outline" onclick="go('dashboard')">Daftar Akun</button>
+            <div class="small-link" onclick="go('dashboard')">Lanjut sebagai Tamu</div>
+          </div>
+        </div>
+        <div class="quote">“Setiap anak berkembang dengan caranya sendiri.”</div>
+      </section>
+
+      <section class="screen" id="dashboard">
+        <div class="topbar">
+          <div><h1>Beranda</h1><div class="sub">Asakita Child Health Center</div></div>
+          <button class="icon-btn" onclick="go('account')">👤</button>
+        </div>
+        <div class="user-greeting">
+          <div class="avatar">👩</div>
+          <div class="greet"><h2>Halo, Bunda Alya</h2><p>Ini ringkasan perkembangan Arslan hari ini.</p></div>
+        </div>
+        <div class="child-card" onclick="go('profile')">
+          <div class="child-photo">👶</div>
+          <div style="flex:1"><h3>Arslan Shah Malik</h3><p>2 tahun 3 bulan • Lihat profil anak</p></div>
+          <span>›</span>
+        </div>
+        <div class="grid-2">
+          <div class="tile pink" onclick="go('appointments')"><div class="emoji">📅</div><h4>Jadwal Selanjutnya</h4><p>12 Okt 2026 • Terapi Wicara</p></div>
+          <div class="tile green" onclick="go('growth')"><div class="emoji">📈</div><h4>Pertumbuhan</h4><p>BB/TB sesuai usia</p></div>
+          <div class="tile blue" onclick="go('screening')"><div class="emoji">🧩</div><h4>Perkembangan</h4><p>Bahasa dalam proses</p></div>
+          <div class="tile yellow" onclick="go('stimulation')"><div class="emoji">💡</div><h4>Rekomendasi Hari Ini</h4><p>Stimulasi motorik & bicara</p></div>
+        </div>
+        <div class="section-title"><h3>Artikel Pilihan</h3><span onclick="go('education')">Lihat Semua</span></div>
+        <div class="article-card" onclick="go('education')"><div class="thumb">🗣️</div><div><h4>Stimulasi Bicara Ku di Rumah</h4><p>Untuk usia 2–3 tahun</p></div></div>
+        <div class="article-card" onclick="go('education')"><div class="thumb">🥣</div><div><h4>Menu MPASI Mingguan</h4><p>Ide menu sehat dan mudah</p></div></div>
+        <nav class="bottom-nav">
+          <button class="nav-item active" onclick="go('dashboard')"><span>🏠</span>Beranda</button>
+          <button class="nav-item" onclick="go('appointments')"><span>📅</span>Jadwal</button>
+          <button class="nav-item" onclick="go('screening')"><span>🧩</span>Perkembangan</button>
+          <button class="nav-item" onclick="go('education')"><span>📚</span>Edukasi</button>
+          <button class="nav-item" onclick="go('account')"><span>👤</span>Profil</button>
+        </nav>
+      </section>
+
+      <section class="screen" id="profile">
+        <div class="back-title"><button class="back" onclick="go('dashboard')">‹</button><div><h1>Profil Anak</h1><p>Data dasar dan kontak pasien</p></div></div>
+        <div class="child-card"><div class="child-photo">👶</div><div style="flex:1"><h3>Arslan Shah Malik</h3><p>Laki-laki • 2 tahun 3 bulan</p><span class="pill green">Pasien Aktif</span></div></div>
+        <div class="tabs"><button class="tab active">Data Dasar</button><button class="tab">Riwayat</button><button class="tab">Kontak</button><button class="tab">Dokumen</button></div>
+        <div class="info-table">
+          <div class="tr"><span class="label">Nama Lengkap</span><span class="value">Arslan Shah Malik</span></div>
+          <div class="tr"><span class="label">Tanggal Lahir</span><span class="value">7 Nov 2023</span></div>
+          <div class="tr"><span class="label">Berat Lahir</span><span class="value">2,87 kg</span></div>
+          <div class="tr"><span class="label">Panjang Lahir</span><span class="value">46 cm</span></div>
+          <div class="tr"><span class="label">Golongan Darah</span><span class="value">A</span></div>
+          <div class="tr"><span class="label">Alergi</span><span class="value">Tidak ada</span></div>
+        </div>
+        <button class="btn btn-primary">Edit Data</button>
+        <nav class="bottom-nav">
+          <button class="nav-item" onclick="go('dashboard')"><span>🏠</span>Beranda</button><button class="nav-item" onclick="go('appointments')"><span>📅</span>Jadwal</button><button class="nav-item" onclick="go('screening')"><span>🧩</span>Perkembangan</button><button class="nav-item" onclick="go('education')"><span>📚</span>Edukasi</button><button class="nav-item active" onclick="go('account')"><span>👤</span>Profil</button>
+        </nav>
+      </section>
+
+      <section class="screen" id="appointments">
+        <div class="back-title"><button class="back" onclick="go('dashboard')">‹</button><div><h1>Jadwal Kunjungan</h1><p>Konsultasi dan terapi anak</p></div></div>
+        <div class="tabs"><button class="tab active">Akan Datang</button><button class="tab">Riwayat</button></div>
+        <div class="row-card"><div class="appt-date"><b>12</b>Okt<br>2026</div><div class="info"><h4>Terapi Wicara</h4><p>09:00–10:00 • Ruang Terapi 2</p></div><span class="pill green">Konfirmasi</span></div>
+        <div class="row-card"><div class="appt-date"><b>15</b>Okt<br>2026</div><div class="info"><h4>Konsultasi Dokter</h4><p>15:00–15:30 • dr. Imelda Hady, Sp.A</p></div><span class="pill blue">Dikonfirmasi</span></div>
+        <div class="row-card"><div class="appt-date"><b>20</b>Okt<br>2026</div><div class="info"><h4>Terapi Okupasi</h4><p>10:00–11:00 • Ruang Terapi 1</p></div><span class="pill orange">Menunggu</span></div>
+        <button class="btn btn-primary" style="margin:12px 0">+ Buat Janji Kunjungan</button>
+        <div class="calendar"><div style="display:flex;justify-content:space-between;margin-bottom:10px;font-weight:800"><span>‹</span><span>Oktober 2026</span><span>›</span></div><div class="cal-grid"><b>Min</b><b>Sen</b><b>Sel</b><b>Rab</b><b>Kam</b><b>Jum</b><b>Sab</b><div></div><div></div><div></div><div></div><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div class="active">12</div><div>13</div><div>14</div><div>15</div><div>16</div><div>17</div></div></div>
+        <nav class="bottom-nav"><button class="nav-item" onclick="go('dashboard')"><span>🏠</span>Beranda</button><button class="nav-item active" onclick="go('appointments')"><span>📅</span>Jadwal</button><button class="nav-item" onclick="go('screening')"><span>🧩</span>Perkembangan</button><button class="nav-item" onclick="go('education')"><span>📚</span>Edukasi</button><button class="nav-item" onclick="go('account')"><span>👤</span>Profil</button></nav>
+      </section>
+
+      <section class="screen" id="growth">
+        <div class="back-title"><button class="back" onclick="go('dashboard')">‹</button><div><h1>Grafik Pertumbuhan</h1><p>Berat, tinggi, dan lingkar kepala</p></div></div>
+        <div class="tabs"><button class="tab active">Berat Badan</button><button class="tab">Tinggi Badan</button><button class="tab">Lingkar Kepala</button></div>
+        <div class="chart-card">
+          <div class="chart-value"><div>Berat Badan Saat Ini</div><b>13,2 kg</b><div style="font-size:12px;color:var(--green)">Sesuai dengan usia</div></div>
+          <div class="chart-area"><div class="curve light"></div><div class="curve"></div><div class="curve orange"></div><div class="point"></div></div>
+          <div class="chart-note">Grafik ini dibuat sebagai contoh visual mengikuti standar pemantauan pertumbuhan anak. Data final perlu disesuaikan dengan standar klinis yang digunakan dokter.</div>
+        </div>
+        <button class="btn btn-soft" onclick="go('reports')">Lihat Laporan Pertumbuhan</button>
+        <nav class="bottom-nav"><button class="nav-item" onclick="go('dashboard')"><span>🏠</span>Beranda</button><button class="nav-item" onclick="go('appointments')"><span>📅</span>Jadwal</button><button class="nav-item active" onclick="go('screening')"><span>🧩</span>Perkembangan</button><button class="nav-item" onclick="go('education')"><span>📚</span>Edukasi</button><button class="nav-item" onclick="go('account')"><span>👤</span>Profil</button></nav>
+      </section>
+
+      <section class="screen" id="screening">
+        <div class="back-title"><button class="back" onclick="go('dashboard')">‹</button><div><h1>Skrining Perkembangan</h1><p>Checklist perkembangan anak</p></div></div>
+        <div class="summary-card" style="background:#fff3df"><h4>Perkembangan Arslan <span class="pill orange">Usia 24–36 bulan</span></h4><p style="margin:0;color:#67716b;font-size:13px">Ringkasan ini bersifat contoh prototype dan perlu validasi klinis dokter/terapis.</p></div>
+        <div class="screening-row"><div class="ico">🏃</div><div class="text"><h4>Motorik Kasar</h4><p>Berjalan, berlari, melompat</p></div><span class="pill green">Sesuai</span></div>
+        <div class="screening-row"><div class="ico">✍️</div><div class="text"><h4>Motorik Halus</h4><p>Memegang, menyusun, menulis</p></div><span class="pill green">Sesuai</span></div>
+        <div class="screening-row"><div class="ico">💬</div><div class="text"><h4>Bahasa</h4><p>Berbicara, memahami, ekspresi</p></div><span class="pill orange">Dalam Proses</span></div>
+        <div class="screening-row"><div class="ico">🤝</div><div class="text"><h4>Sosial & Emosional</h4><p>Interaksi, bermain, mandiri</p></div><span class="pill green">Sesuai</span></div>
+        <div class="screening-row"><div class="ico">🧠</div><div class="text"><h4>Kognitif</h4><p>Memecahkan masalah, fokus</p></div><span class="pill orange">Dalam Proses</span></div>
+        <button class="btn btn-primary" onclick="go('therapy')">Lihat Catatan Terapi</button>
+        <nav class="bottom-nav"><button class="nav-item" onclick="go('dashboard')"><span>🏠</span>Beranda</button><button class="nav-item" onclick="go('appointments')"><span>📅</span>Jadwal</button><button class="nav-item active" onclick="go('screening')"><span>🧩</span>Perkembangan</button><button class="nav-item" onclick="go('education')"><span>📚</span>Edukasi</button><button class="nav-item" onclick="go('account')"><span>👤</span>Profil</button></nav>
+      </section>
+
+      <section class="screen" id="therapy">
+        <div class="back-title"><button class="back" onclick="go('screening')">‹</button><div><h1>Catatan Terapi</h1><p>Ringkasan progress terapi</p></div></div>
+        <div class="tabs"><button class="tab active">Ringkasan</button><button class="tab" onclick="go('session')">Detail Sesi</button></div>
+        <div class="summary-card"><h4>Terapi Wicara <span>70%</span></h4><div class="progress"><i style="width:70%"></i></div><p style="color:#67716b;font-size:12px">12 sesi • target imitasi suara dan kosakata dasar</p></div>
+        <div class="summary-card"><h4>Terapi Okupasi <span>60%</span></h4><div class="progress"><i style="width:60%"></i></div><p style="color:#67716b;font-size:12px">10 sesi • motorik halus dan aktivitas harian</p></div>
+        <div class="summary-card"><h4>Sensory Integration <span>55%</span></h4><div class="progress"><i style="width:55%"></i></div><p style="color:#67716b;font-size:12px">8 sesi • regulasi sensorik dan fokus</p></div>
+        <button class="btn btn-primary" onclick="go('session')">Lihat Detail Sesi Terapi</button>
+        <div class="section-title"><h3>Rekomendasi di Rumah</h3></div>
+        <div class="recommendation"><span>🗣️</span><div><b>Latihan bicara 10 menit/hari</b><br><small>Sebut nama benda sederhana</small></div></div>
+        <div class="recommendation"><span>🧩</span><div><b>Aktivitas puzzle / susun balok</b><br><small>Untuk motorik halus dan fokus</small></div></div>
+        <nav class="bottom-nav"><button class="nav-item" onclick="go('dashboard')"><span>🏠</span>Beranda</button><button class="nav-item" onclick="go('appointments')"><span>📅</span>Jadwal</button><button class="nav-item active" onclick="go('screening')"><span>🧩</span>Perkembangan</button><button class="nav-item" onclick="go('education')"><span>📚</span>Edukasi</button><button class="nav-item" onclick="go('account')"><span>👤</span>Profil</button></nav>
+      </section>
+
+      <section class="screen" id="session">
+        <div class="back-title"><button class="back" onclick="go('therapy')">‹</button><div><h1>Detail Sesi Terapi</h1><p>Catatan terakhir dari terapis</p></div></div>
+        <div class="row-card"><div class="thumb">👩‍⚕️</div><div><h4>Terapi Wicara</h4><p>12 Okt 2026 • Kak Dini, S.Tr</p></div></div>
+        <div class="summary-card"><h4>Catatan Sesi</h4><p style="font-size:13px;color:#59655e;line-height:1.55">Arslan hari ini cukup kooperatif. Dapat menirukan beberapa kata dengan jelas dan mulai mencoba menyusun 2 kata.</p></div>
+        <div class="summary-card"><h4>Target Terapi</h4><p>✅ Menirukan suara / kata sederhana</p><p>✅ Menambah kosakata</p><p>⬜ Latihan artikulasi</p></div>
+        <div class="summary-card"><h4>Respon Anak</h4><div style="display:flex;gap:12px;font-size:26px"><span>😊</span><span>🙂</span><span>😐</span></div></div>
+        <div class="summary-card"><h4>Rekomendasi Rumah</h4><ul style="font-size:13px;color:#59655e;line-height:1.55;padding-left:18px"><li>Latihan menyebut nama benda di rumah</li><li>Membaca buku bergambar 10 menit/hari</li><li>Ajarkan kata-kata 2 suku kata</li></ul></div>
+      </section>
+
+      <section class="screen" id="education">
+        <div class="back-title"><button class="back" onclick="go('dashboard')">‹</button><div><h1>Edukasi ASI / MPASI</h1><p>Materi untuk orang tua</p></div></div>
+        <div class="tabs"><button class="tab active">Semua</button><button class="tab">ASI</button><button class="tab">MPASI</button><button class="tab">Stimulasi</button><button class="tab">Perilaku</button></div>
+        <div class="row-card"><div class="thumb">🤱</div><div class="info"><h4>Panduan ASI Eksklusif 0–6 Bulan</h4><p>Oleh dr. Imelda Hady, Sp.A</p></div></div>
+        <div class="row-card"><div class="thumb">🥣</div><div class="info"><h4>MPASI Pertama Usia 6 Bulan</h4><p>Tekstur, porsi, dan tips awal</p></div></div>
+        <div class="row-card"><div class="thumb">🍲</div><div class="info"><h4>Menu MPASI Mingguan</h4><p>Usia 6–12 bulan</p></div></div>
+        <div class="row-card"><div class="thumb">🗣️</div><div class="info"><h4>Cara Stimulasi Bicara di Rumah</h4><p>Untuk usia 2–3 tahun</p></div></div>
+        <div class="row-card"><div class="thumb">🧸</div><div class="info"><h4>Aktivitas Sensorik Sederhana</h4><p>Meningkatkan fokus anak</p></div></div>
+        <nav class="bottom-nav"><button class="nav-item" onclick="go('dashboard')"><span>🏠</span>Beranda</button><button class="nav-item" onclick="go('appointments')"><span>📅</span>Jadwal</button><button class="nav-item" onclick="go('screening')"><span>🧩</span>Perkembangan</button><button class="nav-item active" onclick="go('education')"><span>📚</span>Edukasi</button><button class="nav-item" onclick="go('account')"><span>👤</span>Profil</button></nav>
+      </section>
+
+      <section class="screen" id="reports">
+        <div class="back-title"><button class="back" onclick="go('dashboard')">‹</button><div><h1>Laporan Perkembangan</h1><p>Resume untuk orang tua</p></div></div>
+        <div class="mock-input">Pilih Periode: Juli 2026 – September 2026</div>
+        <div class="report-cover"><div class="report-logo">♡</div><h2 style="color:var(--green);margin:4px 0">ASAKITA</h2><p style="margin:0;color:#59655e">Child Health Center</p><hr style="border:0;border-top:1px solid #eee4da;margin:18px 0"><h3>Laporan Perkembangan Anak</h3><p>Juli 2026 – September 2026</p><div class="child-photo" style="margin:12px auto">👶</div><b>Arslan Shah Malik</b><p style="font-size:12px;color:#6b7280">2 tahun 3 bulan</p><div class="report-tabs"><div class="mini">Pertumbuhan</div><div class="mini">Perkembangan</div><div class="mini">Terapi</div><div class="mini">Rekomendasi</div></div></div>
+        <button class="btn btn-primary">Download PDF</button><button class="btn btn-outline" style="margin-top:10px">Kirim ke Email</button>
+      </section>
+
+      <section class="screen" id="stimulation">
+        <div class="back-title"><button class="back" onclick="go('dashboard')">‹</button><div><h1>Menu Stimulasi</h1><p>Aktivitas berdasarkan usia</p></div></div>
+        <div class="tabs"><button class="tab">0–6 bln</button><button class="tab">6–12 bln</button><button class="tab">1–2 th</button><button class="tab active">2–3 th</button></div>
+        <div class="row-card"><div class="thumb">🗣️</div><div class="info"><h4>Stimulasi Bicara</h4><p>Melalui permainan sehari-hari</p></div></div>
+        <div class="row-card"><div class="thumb">🧱</div><div class="info"><h4>Stimulasi Motorik Halus</h4><p>Dengan aktivitas rumah</p></div></div>
+        <div class="row-card"><div class="thumb">🎨</div><div class="info"><h4>Stimulasi Sensorik</h4><p>Untuk fokus dan perilaku</p></div></div>
+        <div class="row-card"><div class="thumb">🤝</div><div class="info"><h4>Stimulasi Sosial & Emosional</h4><p>Melalui interaksi keluarga</p></div></div>
+        <div class="row-card"><div class="thumb">🧸</div><div class="info"><h4>Ide Kegiatan Harian</h4><p>Di rumah bersama orang tua</p></div></div>
+      </section>
+
+      <section class="screen" id="account">
+        <div class="back-title"><button class="back" onclick="go('dashboard')">‹</button><div><h1>Akun Orang Tua</h1><p>Profil dan pengaturan</p></div></div>
+        <div class="child-card"><div class="avatar">👩</div><div><h3>Bunda Alya</h3><p>Ibu dari Arslan • alya@example.com</p></div></div>
+        <div class="info-table">
+          <div class="tr"><span>👤 Data Diri</span><span>›</span></div>
+          <div class="tr"><span>👶 Anak Saya</span><span>›</span></div>
+          <div class="tr"><span>🔔 Notifikasi</span><span>›</span></div>
+          <div class="tr"><span>🔐 Keamanan Akun</span><span>›</span></div>
+          <div class="tr"><span>⚙️ Pengaturan</span><span>›</span></div>
+          <div class="tr"><span>❔ Bantuan</span><span>›</span></div>
+          <div class="tr"><span>ℹ️ Tentang Asakita</span><span>›</span></div>
+        </div>
+        <button class="btn btn-danger" onclick="go('login')">Keluar</button>
+        <nav class="bottom-nav"><button class="nav-item" onclick="go('dashboard')"><span>🏠</span>Beranda</button><button class="nav-item" onclick="go('appointments')"><span>📅</span>Jadwal</button><button class="nav-item" onclick="go('screening')"><span>🧩</span>Perkembangan</button><button class="nav-item" onclick="go('education')"><span>📚</span>Edukasi</button><button class="nav-item active" onclick="go('account')"><span>👤</span>Profil</button></nav>
+      </section>
+    </div>
+
+    <aside class="notes-panel">
+      <h2>Asakita Child Health Center</h2>
+      <p><b>Clickable parent-view prototype</b> untuk orang tua pasien. Prototype ini beda dari EMR internal: fokus ke akses yang aman, ringkas, edukatif, dan mobile-friendly.</p>
+      <div class="flow-list">
+        <div class="flow-item" onclick="go('login')"><b>1</b><div>Welcome / Login<small>Masuk, daftar akun, atau lanjut tamu</small></div></div>
+        <div class="flow-item" onclick="go('dashboard')"><b>2</b><div>Dashboard Orang Tua<small>Ringkasan anak, jadwal, artikel, rekomendasi</small></div></div>
+        <div class="flow-item" onclick="go('profile')"><b>3</b><div>Profil Anak<small>Data dasar, riwayat, kontak, dokumen</small></div></div>
+        <div class="flow-item" onclick="go('appointments')"><b>4</b><div>Jadwal Kunjungan<small>Konsultasi dokter dan jadwal terapi</small></div></div>
+        <div class="flow-item" onclick="go('growth')"><b>5</b><div>Grafik BB/TB<small>Pertumbuhan berat, tinggi, lingkar kepala</small></div></div>
+        <div class="flow-item" onclick="go('screening')"><b>6</b><div>Skrining Perkembangan<small>Motorik, bahasa, sosial, kognitif</small></div></div>
+        <div class="flow-item" onclick="go('therapy')"><b>7</b><div>Catatan Terapi<small>Ringkasan progress dan rekomendasi rumah</small></div></div>
+        <div class="flow-item" onclick="go('education')"><b>8</b><div>Edukasi ASI / MPASI<small>Artikel, menu MPASI, cara stimulasi</small></div></div>
+        <div class="flow-item" onclick="go('reports')"><b>9</b><div>Laporan Perkembangan<small>PDF / email untuk orang tua</small></div></div>
+      </div>
+      <div class="scope">
+        <div class="scope-card"><h4>Catatan konsep</h4><p>Orang tua hanya melihat data ringkas/kurasi, bukan catatan medis internal mentah.</p></div>
+        <div class="scope-card"><h4>Next phase</h4><p>Bisa lanjut ke Figma/prototype lebih rapi, BRD, ERD sederhana, dan scope MVP.</p></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    function go(id){
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      const el=document.getElementById(id);
+      if(el){el.classList.add('active');}
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+  </script>
+</body>
+</html>

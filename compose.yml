@@ -1,0 +1,10 @@
+services:
+  asakita:
+    build: .
+    ports: ["8787:8787"]
+    volumes: ["asakita-data:/data"]
+    environment:
+      DATABASE_URL: "file:/data/asakita.db"
+      FRONTEND_ORIGINS: "http://localhost:5173,http://localhost:5174"
+volumes:
+  asakita-data:
