@@ -263,7 +263,7 @@ app.delete("/api/visits/:id", need("owner", "dokter"), async (c) => {
 // --- therapy / growth / milestones / screening ---
 app.get("/api/therapy-sessions", need(...STAFF), (c) => {
   const { childId, typeId } = c.req.query();
-  let sql = "SELECT s.*,t.name type_name FROM therapy_sessions s LEFT JOIN therapy_types t ON t.id=s.type_id WHERE 1=1"; const p = [];
+  let sql = "SELECT s.*,t.name type_name,ch.full_name child_name FROM therapy_sessions s LEFT JOIN therapy_types t ON t.id=s.type_id LEFT JOIN children ch ON ch.id=s.child_id WHERE 1=1"; const p = [];
   if (childId) { sql += " AND child_id=?"; p.push(childId); }
   if (typeId) { sql += " AND type_id=?"; p.push(typeId); }
   return c.json({ data: rows(sql + " ORDER BY date DESC", ...p) });

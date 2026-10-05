@@ -378,7 +378,8 @@ const ACTS = ["Imitasi suara", "Kontak mata", "Instruksi sederhana", "Kosakata d
 function Therapy() {
   const [list, setList] = useState<any[]>([]); const [types, setTypes] = useState<any[]>([]); const [kids, setKids] = useState<any[]>([]);
   const [f, setF] = useState<any>({ date: new Date().toISOString().slice(0, 10), acts: [] as string[] });
-  const load = () => api.get("/api/therapy-sessions").then((r) => setList(r.data)).catch(() => {});
+  const [fc, setFc] = useState("");
+  const load = (child = fc) => api.get("/api/therapy-sessions" + (child ? `?childId=${child}` : "")).then((r) => setList(r.data)).catch(() => {});
   useEffect(() => { load(); api.get("/api/therapy-types").then((r) => setTypes(r.data)).catch(() => {}); api.get("/api/patients").then((r) => setKids(r.data)).catch(() => {}); }, []);
   const toggle = (a: string) => setF({ ...f, acts: f.acts.includes(a) ? f.acts.filter((x: string) => x !== a) : [...f.acts, a] });
   return <div><h2 className="serif">Catatan terapi</h2><p className="sub">Satu sesi = target + aktivitas + respon + PR rumah. Tersimpan per terapis.</p>
@@ -389,8 +390,8 @@ function Therapy() {
       <label className="lbl">Target terapi</label><input className="inp" placeholder="cth. verbal & respon komunikasi sederhana" onChange={(e) => setF({ ...f, target: e.target.value })} />
       <label className="lbl">Aktivitas dilakukan</label><div className="checks">{ACTS.map((a) => <label key={a}><input type="checkbox" checked={f.acts.includes(a)} onChange={() => toggle(a)} />{a}</label>)}</div>
       <div className="fgrid"><div><label className="lbl">Respon anak</label><input className="inp" placeholder="3/5 instruksi direspon" onChange={(e) => setF({ ...f, response: e.target.value })} /></div><div><label className="lbl">PR rumah</label><input className="inp" placeholder="10 mnt/hari…" onChange={(e) => setF({ ...f, home_recommendation: e.target.value })} /></div></div>
-      <button className="btn btn-p" style={{ marginTop: 16 }} onClick={() => { if (!f.child_id || !f.type_id) return alert("Pilih anak + jenis terapi."); api.post("/api/therapy-sessions", { ...f, activities: f.acts }).then(load).catch((e) => alert("Gagal (" + e.message + ")")); }}>Simpan progress</button></div>
-      <div><h3 style={{ margin: "4px 0 10px" }}>20 sesi terakhir</h3><div className="tl">{list.slice(0, 20).map((s: any) => <div className="it" key={s.id}><b>{(s.date || "").slice(5)}</b><div><b>{s.type_name}</b><br /><small style={{ color: "#6d7c74" }}>{s.target || "—"}{s.home_recommendation ? " • PR: " + s.home_recommendation : ""}</small></div><span className="pill">{s.response || "—"}</span></div>)}{!list.length && <div className="empty"><div className="big">⬢</div>Belum ada sesi.</div>}</div></div></div></div>;
+      <button className="btn btn-p" style={{ marginTop: 16 }} onClick={() => { if (!f.child_id || !f.type_id) return alert("Pilih anak + jenis terapi."); api.post("/api/therapy-sessions", { ...f, activities: f.acts }).then(() => load()).catch((e) => alert("Gagal (" + e.message + ")")); }}>Simpan progress</button></div>
+      <div><h3 style={{ margin: "4px 0 10px" }}>20 sesi terakhir</h3><select className="inp" style={{ marginBottom: 10 }} value={fc} onChange={(e) => { setFc(e.target.value); load(e.target.value); }}><option value="">Semua anak</option>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select><div className="tl">{list.slice(0, 20).map((s: any) => <div className="it" key={s.id}><b>{(s.date || "").slice(5)}</b><div><b>{s.type_name}</b>{!fc && <small style={{ color: "#6d7c74" }}> • {s.child_name || ""}</small>}<br /><small style={{ color: "#6d7c74" }}>{s.target || "—"}{s.home_recommendation ? " • PR: " + s.home_recommendation : ""}</small></div><span className="pill">{s.response || "—"}</span></div>)}{!list.length && <div className="empty"><div className="big">⬢</div>Belum ada sesi.</div>}</div></div></div></div>;
 }
 
 function Progress() {
