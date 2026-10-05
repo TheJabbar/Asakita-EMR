@@ -395,7 +395,7 @@ function Pass() {
     {m && <p style={{ fontSize: 13, color: m.startsWith("✓") ? "#237142" : "#b42318" }}>{m}</p>}
     <button className="btn btn-p" style={{ marginTop: 10 }} onClick={() => {
       if (f.b !== f.c) return setM("Konfirmasi tidak sama.");
-      api.post("/api/portal/change-password", { current: f.a, next: f.b }).then(() => { setM("✓ Password diganti."); setF({ a: "", b: "", c: "" }); }).catch(() => setM("Gagal — password lama salah atau baru kurang dari 6 karakter.");
+      api.post("/api/portal/change-password", { current: f.a, next: f.b }).then(() => { setM("✓ Password diganti."); setF({ a: "", b: "", c: "" }); }).catch(() => setM("Gagal — password lama salah atau baru kurang dari 6 karakter."));
     }}>Ganti password</button></div>;
 }
 
