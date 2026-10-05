@@ -295,7 +295,7 @@ function Session({ route }: any) {
 }
 
 function Edu() {
-  const [cat, setCat] = useState(""); const [q, setQ] = useState(""); const [list, setList] = useState<any[]>([]);
+  const [cat, setCat] = useState(""); const [q, setQ] = useState(""); const [list, setList] = useState<any[]>([]); const [open, setOpen] = useState("");
   useEffect(() => { api.get("/api/articles" + (cat ? `?category=${cat}` : "")).then((r) => setList(r.data)).catch(() => {}); }, [cat]);
   const shown = list.filter((a) => (a.title + " " + a.body_md).toLowerCase().includes(q.toLowerCase()));
   const emo = (c: string) => c === "ASI" ? "🤱" : c === "MPASI" ? "🥣" : c === "stimulasi" ? "🗣️" : "🧸";
@@ -304,7 +304,7 @@ function Edu() {
     <input className="inp" placeholder="⌕ Cari artikel…" value={q} onChange={(e) => setQ(e.target.value)} />
     <div className="tabs">{["", "ASI", "MPASI", "stimulasi", "perilaku"].map((c) => <button key={c} className={"tab" + (cat === c ? " on" : "")} onClick={() => setCat(c)}>{c || "Semua"}</button>)}</div>
     {!shown.length ? <div className="empty"><div className="big">📚</div>Tidak ada artikel cocok.</div>
-      : shown.map((a: any) => <div className="row" key={a.id}><div className="thumb">{emo(a.category)}</div><div><h4>{a.title}</h4><p>{a.author} • <span className="pill green">{a.category}</span></p><p className="art-body">{a.body_md}</p></div></div>)}
+      : shown.map((a: any) => <div className="row" key={a.id} onClick={() => setOpen(open === a.id ? "" : a.id)}><div className="thumb">{emo(a.category)}</div><div style={{ flex: 1 }}><h4>{a.title}</h4><p>{a.author} • <span className="pill green">{a.category}</span></p>{open === a.id ? <p style={{ fontSize: 13, color: "#1d2b25", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{a.body_md}</p> : <p className="art-body">{a.body_md}</p>}</div><span style={{ color: "#275844", fontWeight: 800 }}>{open === a.id ? "▾" : "▸"}</span></div>)}
   </div>;
 }
 
