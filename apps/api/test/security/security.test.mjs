@@ -67,4 +67,8 @@ describe("security gate", () => {
     assert.equal(r.headers.get("x-frame-options"), "DENY");
     assert.notEqual(r.headers.get("access-control-allow-origin"), "*");
   });
+  it("9 preflight: PUT/PATCH allowed (browser SOAP save needs it)", async () => {
+    const r = await app.request("/api/visits/x/soap", { method: "OPTIONS", headers: { Origin: "http://localhost:5173", "Access-Control-Request-Method": "PUT" } });
+    assert.ok((r.headers.get("access-control-allow-methods") || "").includes("PUT"));
+  });
 });
