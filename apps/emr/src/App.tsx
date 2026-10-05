@@ -255,7 +255,7 @@ function Login({ onOk }: any) {
 function Dash() {
   const [d, setD] = useState<any>(null); const [err, setErr] = useState("");
   const load = () => { setErr(""); api.get("/api/dashboard/summary").then((r) => setD(r)).catch((e) => setErr(String(e?.message || e))); };
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
   const stats = useMemo(() => d ? [
     { l: "Total pasien", v: d.totalPatients, b: "+" + d.monthlyNew + " bulan ini", e: "◉", c: "" },
     { l: "Jadwal hari ini", v: d.todayCount, b: d.waitingCount + " menunggu", e: "▦", c: "warn" },
@@ -434,7 +434,7 @@ function Users() {
   const [list, setList] = useState<any[]>([]); const [err, setErr] = useState("");
   const [f, setF] = useState<any>({ role: "admin" });
   const load = () => api.get("/api/users").then((r) => { setList(r.data); setErr(""); }).catch(() => setErr("Hanya owner/dokter yang boleh melihat halaman ini (403)."));
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
   return <div><h2 className="serif">Role & akses user</h2><p className="sub">Ditegakkan di server via middleware — UI hanya cermin.</p>
     {err ? <div className="card">{err}</div> : <><div className="card" style={{ padding: 6 }}><table className="tbl"><thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody>{list.map((u: any) => <tr key={u.id}><td><span className="avatar" style={{ display: "inline-grid", width: 30, height: 30, fontSize: 10, marginRight: 8, verticalAlign: "middle" }}>{initials(u.name)}</span><b>{u.name}</b></td><td>{u.email}</td><td><span className={"pill " + (u.role === "owner" || u.role === "dokter" ? "ok" : "")}>{u.role}</span></td><td>{u.status}</td></tr>)}</tbody></table></div>
       <div className="card" style={{ marginTop: 14 }}><h3 style={{ marginTop: 0 }}>+ Tambah user</h3><div className="fgrid"><input className="inp" placeholder="Nama" onChange={(e) => setF({ ...f, name: e.target.value })} /><input className="inp" placeholder="email@…" onChange={(e) => setF({ ...f, email: e.target.value })} /></div><div className="fgrid" style={{ marginTop: 10 }}><select className="inp" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{["admin", "terapis", "dokter", "owner"].map((r) => <option key={r}>{r}</option>)}</select><input className="inp" placeholder="password (default prototype)" onChange={(e) => setF({ ...f, password: e.target.value })} /></div><button className="btn btn-s" style={{ marginTop: 12, background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={() => api.post("/api/users", f).then(load).catch((e) => alert("Gagal (" + e.message + ")"))}>Simpan user</button></div></>}</div>;
