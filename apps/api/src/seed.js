@@ -42,6 +42,14 @@ if (!db.prepare("SELECT id FROM parents WHERE user_id=?").get(pid)) {
     ["menu-mpasi", "Menu MPASI Mingguan", "MPASI", "Tim Asakita", "Ide menu 6–12 bln...", "6-12"],
     ["stimulasi-bicara", "Cara Stimulasi Bicara di Rumah", "stimulasi", "Kak Dini", "Sebut nama benda...", "2-3"],
     ["sensorik", "Aktivitas Sensorik Sederhana", "stimulasi", "Tim Asakita", "Main puzzle, balok...", "1-2"],
+    ["pompa-asi", "Pompa ASI untuk Ibu Bekerja", "ASI", "Konselor Laktasi", "Jadwal pompa, simpan ASI...", "0-6"],
+    ["jadwal-makan", "Jadwal Makan Bayi 6–9 Bulan", "MPASI", "Tim Asakita", "3x makan + 2x selingan...", "6-12"],
+    ["snack-sehat", "Snack Sehat Anak 1–2 Tahun", "MPASI", "Tim Asakita", "Buah, yoghurt, biskuit...", "1-2"],
+    ["main-balok", "Main Balok untuk Motorik Halus", "stimulasi", "Kak Dini", "Susun, bongkar, ulang...", "1-2"],
+    ["dongeng", "Dongeng 10 Menit Sehari", "stimulasi", "Tim Asakita", "Kosakata + bonding...", "2-3"],
+    ["tantrum", "Mengatasi Tantrum dengan Tenang", "perilaku", "Psikolog Anak", "Akui emosi, alihkan...", "2-3"],
+    ["toilet-training", "Toilet Training Tanpa Drama", "perilaku", "Tim Asakita", "Tanda siap, rutinitas...", "2-3"],
+    ["screen-time", "Batasan Screen Time Usia Dini", "perilaku", "dr. Imelda Hady, Sp.A", "Maks 1 jam, dampingi...", "2-3"],
   ];
   for (const [slug, title, cat, au, body, age] of arts)
     db.prepare("INSERT OR IGNORE INTO articles(id,slug,title,category,author,body_md,age_tag,published_at) VALUES(?,?,?,?,?,?,?,?)")
