@@ -44,7 +44,9 @@ async function me(c) {
 }
 function setSession(c, user) { // cookie follows the calling app (via Origin), never clobbers the other app
   const isPortal = PORTAL_ORIGINS.includes(c.req.header("origin") || "");
-  setCookie(c, isPortal ? "asakita_portal" : "asakita", signToken({ sub: user.id, role: user.role }), { httpOnly: true, path: "/", maxAge: 7 * 86400 });
+  // ponytail: COOKIE_CROSS_SITE=1 for https tunnels (codespaces/vscode forwarding); localhost stays Lax
+  const cross = process.env.COOKIE_CROSS_SITE === "1" ? { sameSite: "None", secure: true } : {};
+  setCookie(c, isPortal ? "asakita_portal" : "asakita", signToken({ sub: user.id, role: user.role }), { httpOnly: true, path: "/", maxAge: 7 * 86400, ...cross });
 }
 const need = (...roles) => async (c, next) => {
   const u = await me(c);

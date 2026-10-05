@@ -103,4 +103,11 @@ describe("unit: EMR + portal sessions coexist", () => {
     await app.request("/api/auth/logout", { method: "POST", headers: { Cookie: portal, origin: PORTAL } });
     assert.equal((await (await app.request("/api/me", { headers: { Cookie: staff, origin: EMR } })).json()).user.role, "dokter");
   });
+  it("COOKIE_CROSS_SITE=1 emits SameSite=None; Secure (https tunnels)", async () => {
+    process.env.COOKIE_CROSS_SITE = "1";
+    const r = await app.request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json", origin: EMR }, body: JSON.stringify({ email: "dokter@asakita.demo", password: "prototype" }) });
+    assert.equal(r.status, 200);
+    assert.ok((r.headers.getSetCookie?.() || []).some((s) => /SameSite=None/i.test(s) && /Secure/i.test(s)));
+    delete process.env.COOKIE_CROSS_SITE;
+  });
 });
