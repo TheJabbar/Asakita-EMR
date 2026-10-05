@@ -181,16 +181,23 @@ function Home({ me }: any) {
 
 function Child({ route }: any) {
   const id = route.split("/")[2]; const [c, setC] = useState<any>(null); const [tab, setTab] = useState("Data Dasar");
-  useEffect(() => { api.get("/api/portal/children/" + id).then(setC).catch(() => {}); }, [id]);
+  const [hist, setHist] = useState<any>(null); const [docs, setDocs] = useState<any[]>([]);
+  useEffect(() => { api.get("/api/portal/children/" + id).then(setC).catch(() => {}); api.get(`/api/portal/children/${id}/history`).then(setHist).catch(() => {}); api.get(`/api/portal/documents?childId=${id}`).then((r) => setDocs(r.data)).catch(() => {}); }, [id]);
+  const dlDoc = async (did: string, title: string) => {
+    const r = await fetch(API + `/api/portal/documents/${did}/file`, { credentials: "include" });
+    if (!r.ok) return alert("File belum tersedia — minta ke front office.");
+    const url = URL.createObjectURL(new Blob([await r.arrayBuffer()]));
+    const a = document.createElement("a"); a.href = url; a.download = title; a.click(); URL.revokeObjectURL(url);
+  };
   if (!c) return <div className="card"><div className="skel" /><div className="skel" style={{ marginTop: 8 }} /></div>;
   return <div>
     <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Profil anak</h1><p>Data dasar & kontak — read-only</p></div></div>
     <div className="card child-card"><div className="child-photo">👶</div><div style={{ flex: 1 }}><h3 style={{ margin: 0 }}>{c.full_name}</h3><p style={{ color: "#6f7d75", fontSize: 12, margin: "4px 0" }}>{c.gender} • {ageID(c.dob)}</p><span className="pill green">Pasien aktif</span></div></div>
     <div className="tabs">{["Data Dasar", "Riwayat", "Kontak", "Dokumen"].map((t) => <button key={t} className={"tab" + (tab === t ? " on" : "")} onClick={() => setTab(t)}>{t}</button>)}</div>
     {tab === "Data Dasar" && <div className="info">{[["Nama lengkap", c.full_name], ["Panggilan", c.nickname || "—"], ["Tanggal lahir", dID(c.dob)], ["Gol. darah", c.blood_type || "—"], ["BB lahir", c.birth_weight_kg ? c.birth_weight_kg + " kg" : "—"], ["PB lahir", c.birth_length_cm ? c.birth_length_cm + " cm" : "—"]].map(([k, v]) => <div className="tr" key={k}><span className="lab">{k}</span><span className="val">{v}</span></div>)}</div>}
-    {tab === "Riwayat" && <div className="card">Riwayat medis lengkap dikurasi dokter — minta salinan via front office bila perlu dibawa kontrol.</div>}
+    {tab === "Riwayat" && <div className="card">{hist && (hist.birth_history || hist.allergies || hist.notes) ? <div style={{ fontSize: 13.5, lineHeight: 1.6 }}><p><b>Riwayat kelahiran</b><br />{hist.birth_history || "—"}</p><p><b>Catatan khusus</b><br />{hist.notes || "—"}</p><p>Alergi: <span className="pill orange">{hist.allergies || "—"}</span></p></div> : "Belum ada riwayat tercatat — tanyakan ke dokter saat kontrol."}</div>}
     {tab === "Kontak" && <div className="info"><div className="tr"><span className="lab">Alamat</span><span className="val">{c.address || "—"}</span></div><div className="tr"><span className="lab">Kontak darurat</span><span className="val">Front office Asakita</span></div></div>}
-    {tab === "Dokumen" && <div className="card">Dokumen (akte/assessment) dikelola klinik. Unduh resume via <b onClick={() => (location.hash = "#/reports")} style={{ color: "#275844", textDecoration: "underline" }}>Laporan →</b></div>}
+    {tab === "Dokumen" && <div className="card">{docs.length ? docs.map((d: any) => <div key={d.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: "1px solid #f0e8d4" }}><div style={{ flex: 1, fontSize: 13.5 }}>📄 <b>{d.title}</b><br /><small style={{ color: "#6f7d75" }}>{d.kind}</small></div><button className="btn btn-soft btn-a" onClick={() => dlDoc(d.id, d.title)}>Unduh</button></div>) : <div>Belum ada dokumen. Minta salinan (akte/assessment) via front office, atau unduh resume via <b onClick={() => (location.hash = "#/reports")} style={{ color: "#275844", textDecoration: "underline" }}>Laporan →</b></div>}</div>}
     <button className="btn btn-o" onClick={() => alert("Perubahan data via front office — demi keamanan data anak.")}>Minta edit data</button>
   </div>;
 }
@@ -347,10 +354,13 @@ function Stim() {
 }
 
 function Acct({ me, setMe }: any) {
+  const [prof, setProf] = useState<any>(null);
+  useEffect(() => { api.get("/api/portal/profile").then(setProf).catch(() => {}); }, []);
   const rows = [["👤", "Data diri"], ["👶", "Anak saya", "#/"], ["🔔", "Notifikasi"], ["🔐", "Keamanan akun"], ["⚙️", "Pengaturan"], ["❔", "Bantuan"], ["ℹ️", "Tentang Asakita"]];
   return <div>
     <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Akun orang tua</h1><p>Profil & pengaturan</p></div></div>
     <div className="card child-card"><div className="avatar">👩</div><div><h3 style={{ margin: 0 }}>{me?.name || "Orang tua"}</h3><p style={{ color: "#6f7d75", fontSize: 12, margin: "4px 0 0" }}>{me?.email || ""}</p></div></div>
+    <div className="info"><div className="tr"><span className="lab">No. HP</span><span className="val">{prof?.phone || "—"}</span></div><div className="tr"><span className="lab">Alamat</span><span className="val">{prof?.address || "—"}</span></div><div className="tr"><span className="lab">Ubah data</span><span className="val" style={{ fontWeight: 400, fontSize: 12 }}>Via front office</span></div></div>
     <div className="info">{rows.map(([e, l, h]) => <div className="tr" key={l} style={{ cursor: h ? "pointer" : "default" }} onClick={() => h && (location.hash = h)}><span>{e} {l}</span><span>›</span></div>)}</div>
     <button className="btn btn-d" onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include" }).then(() => { setMe(null); location.hash = "#/welcome"; })}>Keluar</button>
     <p className="quote">Asakita v0.1 • data anak hanya untuk akun tertaut</p>

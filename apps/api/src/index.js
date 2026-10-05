@@ -368,6 +368,29 @@ app.get("/api/portal/children/:id", P, needOwnChild, (c) => {
   const ch = row("SELECT id,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address FROM children WHERE id=?", c.req.param("id"));
   return ch ? c.json(ch) : err(c, "not_found", "not found", 404);
 });
+// ponytail: curated history (birth/allergy notes — own child only, never raw SOAP)
+app.get("/api/portal/children/:id/history", P, needOwnChild, (c) =>
+  c.json(row("SELECT birth_history,allergies,notes FROM medical_history WHERE child_id=?", c.req.param("id")) || { birth_history: "", allergies: "", notes: "" }));
+// ponytail: own documents list + file bytes (uploads never exposed directly)
+app.get("/api/portal/documents", P, needOwnChild, (c) => {
+  const cid = c.req.query("childId");
+  if (!cid) return err(c, "invalid", "childId wajib", 400);
+  return c.json({ data: rows("SELECT id,kind,title,created_at FROM documents WHERE child_id=? ORDER BY created_at DESC", cid) });
+});
+app.get("/api/portal/documents/:id/file", P, async (c) => {
+  const d = row("SELECT * FROM documents WHERE id=?", c.req.param("id"));
+  if (!d || !parentChildIds(c.get("user").id).includes(d.child_id)) return err(c, "not_found", "not found", 404);
+  const fp = join(UP, basename(d.file_url || ""));
+  if (!existsSync(fp)) return err(c, "not_found", "file hilang", 404);
+  c.header("content-type", /\.pdf$/i.test(fp) ? "application/pdf" : /\.png$/i.test(fp) ? "image/png" : "image/jpeg");
+  return c.body(new Uint8Array(readFileSync(fp)));
+});
+// ponytail: own parent profile powers the Account page (name/email/phone/address)
+app.get("/api/portal/profile", P, (c) => {
+  const u = c.get("user");
+  const p = row("SELECT phone,address FROM parents WHERE user_id=?", u.id) || {};
+  return c.json({ name: u.name, email: u.email, phone: p.phone || "", address: p.address || "" });
+});
 app.get("/api/portal/appointments", P, (c) => {
   const ids = parentChildIds(c.get("user").id);
   if (!ids.length) return c.json({ data: [] });

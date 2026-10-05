@@ -32,6 +32,8 @@ if (!db.prepare("SELECT id FROM parents WHERE user_id=?").get(pid)) {
   db.prepare("INSERT INTO parent_children(parent_id,child_id,relation) VALUES(?,?,?)").run(p2, c3, "Ayah");
   db.prepare("INSERT OR REPLACE INTO medical_history(child_id,birth_history,allergies,notes) VALUES(?,?,?,?)")
     .run(c1, "Lahir cukup bulan, BB 3.1 kg, PB 49 cm.", "-", "Pemantauan bahasa dan interaksi sosial.");
+  db.prepare("INSERT OR REPLACE INTO medical_history(child_id,birth_history,allergies,notes) VALUES(?,?,?,?)")
+    .run(c2, "Lahir 36 minggu, BB 2.87 kg, PB 46 cm. Rawat NICU 5 hari.", "Susu sapi", "Fokus stimulasi bahasa dan motorik halus.");
   const t = new Date().toISOString().slice(0, 10);
   const ap = (child, type, room, status, h) => db.prepare("INSERT INTO appointments(id,child_id,type,room,staff_id,starts_at,ends_at,status) VALUES(?,?,?,?,?,?,?,?)")
     .run(uid("a"), child, type, room, dokter, `${t}T0${h}:00`, `${t}T0${h}:30`, status);

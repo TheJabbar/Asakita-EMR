@@ -27,6 +27,16 @@ describe("unit: portal orang tua", () => {
     assert.equal((await app.request(`/api/portal/children/${kidA}`, { headers: H(alya) })).status, 200);
     assert.equal((await app.request(`/api/portal/children/${kidB}`, { headers: H(alya) })).status, 404);
   });
+  it("profile + history + documents scoped to own child", async () => {
+    const prof = await (await app.request("/api/portal/profile", { headers: H(alya) })).json();
+    assert.equal(prof.email, "alya@example.com");
+    const h = await app.request(`/api/portal/children/${kidA}/history`, { headers: H(alya) });
+    assert.equal(h.status, 200);
+    assert.equal((await app.request(`/api/portal/children/${kidB}/history`, { headers: H(alya) })).status, 404);
+    assert.equal((await app.request(`/api/portal/documents?childId=${kidB}`, { headers: H(alya) })).status, 404);
+    const docs = await (await app.request(`/api/portal/documents?childId=${kidA}`, { headers: H(alya) })).json();
+    assert.ok(Array.isArray(docs.data));
+  });
   it("appointments: request own ok, foreign 404; upcoming/history split", async () => {
     const t = new Date(Date.now() + 864e5).toISOString().slice(0, 16);
     const ok = await app.request("/api/portal/appointment-requests", { method: "POST", headers: H(alya), body: JSON.stringify({ child_id: kidA, type: "Konsultasi Dokter", starts_at: t }) });
