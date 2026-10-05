@@ -14,6 +14,8 @@ mkdirSync(UP, { recursive: true });
 // --- security headers + CORS (never * with credentials; reflect allowlisted origin) ---
 // ponytail: comma-separated allowlist so EMR (:5173) + portal (:5174) both work in dev
 const ORIGINS = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_ORIGIN || "http://localhost:5173,http://localhost:5174").split(",").map((s) => s.trim());
+// ponytail: which origins count as "portal" for cookie choice (prod: set PORTAL_ORIGINS=https://portal.asakita.id)
+const PORTAL_ORIGINS = (process.env.PORTAL_ORIGINS || "http://localhost:5174").split(",").map((s) => s.trim());
 app.use("*", async (c, next) => {
   await next();
   c.header("content-security-policy", "default-src 'self'");
@@ -32,10 +34,17 @@ const audit = (actor, action, entity, id, meta = {}) =>
   run("INSERT INTO audit_logs(id,actor_id,action,entity,entity_id,at,meta) VALUES(?,?,?,?,?,?,?)",
     uid("au"), actor || "-", action, entity, id || "-", new Date().toISOString(), JSON.stringify(meta));
 async function me(c) {
-  const t = getCookie(c, "asakita") || (c.req.header("authorization") || "").replace("Bearer ", "");
-  const p = verifyToken(t);
+  // ponytail: separate staff vs portal cookies so EMR+portal stay logged in side-by-side (same host, different ports/hosts)
+  const staff = getCookie(c, "asakita") || (c.req.header("authorization") || "").replace("Bearer ", "");
+  const portal = getCookie(c, "asakita_portal");
+  const isPortal = PORTAL_ORIGINS.includes(c.req.header("origin") || "");
+  const p = verifyToken(isPortal ? (portal || staff) : (staff || portal));
   if (!p) return null;
   return row("SELECT id,name,email,role,status FROM users WHERE id=?", p.sub) || null;
+}
+function setSession(c, user) { // cookie follows the calling app (via Origin), never clobbers the other app
+  const isPortal = PORTAL_ORIGINS.includes(c.req.header("origin") || "");
+  setCookie(c, isPortal ? "asakita_portal" : "asakita", signToken({ sub: user.id, role: user.role }), { httpOnly: true, path: "/", maxAge: 7 * 86400 });
 }
 const need = (...roles) => async (c, next) => {
   const u = await me(c);
@@ -82,7 +91,7 @@ app.post("/api/auth/login", bodyLimit, async (c) => {
   const { email, password } = await c.req.json().catch(() => ({}));
   const u = row("SELECT * FROM users WHERE email=?", String(email || "").slice(0, 200));
   if (!u || !verifyPassword(String(password || ""), u.password_hash || "")) return err(c, "invalid", "email/password salah", 401);
-  setCookie(c, "asakita", signToken({ sub: u.id, role: u.role }), { httpOnly: true, path: "/", maxAge: 7 * 86400 });
+  setSession(c, u);
   return c.json({ user: { id: u.id, name: u.name, email: u.email, role: u.role } });
 });
 app.post("/api/auth/google", bodyLimit, async (c) => { // ponytail: stub — verify OIDC when GOOGLE_CLIENT_ID set
@@ -95,7 +104,7 @@ app.post("/api/auth/google", bodyLimit, async (c) => { // ponytail: stub — ver
     const p = uid("p"); run("INSERT INTO parents(id,user_id) VALUES(?,?)", p, id);
     u = row("SELECT * FROM users WHERE id=?", id);
   }
-  setCookie(c, "asakita", signToken({ sub: u.id, role: u.role }), { httpOnly: true, path: "/", maxAge: 7 * 86400 });
+  setSession(c, u);
   return c.json({ user: { id: u.id, name: u.name, email: u.email, role: u.role } });
 });
 app.post("/api/auth/register-parent", bodyLimit, async (c) => {
@@ -112,7 +121,12 @@ app.post("/api/auth/forgot", bodyLimit, async (c) => {
   run("INSERT INTO password_resets(email,token,at) VALUES(?,?,?)", email || "-", uid("t"), new Date().toISOString());
   return c.json({ ok: true });
 });
-app.post("/api/auth/logout", (c) => { deleteCookie(c, "asakita", { path: "/" }); return c.json({ ok: true }); });
+app.post("/api/auth/logout", (c) => {
+  const origin = c.req.header("origin") || "";
+  if (!origin) { deleteCookie(c, "asakita", { path: "/" }); deleteCookie(c, "asakita_portal", { path: "/" }); }
+  else deleteCookie(c, PORTAL_ORIGINS.includes(origin) ? "asakita_portal" : "asakita", { path: "/" });
+  return c.json({ ok: true });
+});
 app.get("/api/me", async (c) => { const u = await me(c); return u ? c.json({ user: u }) : err(c, "unauthorized", "login", 401); });
 
 // --- dashboard + search (staff) ---

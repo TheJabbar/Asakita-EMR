@@ -88,3 +88,19 @@ describe("unit: portal orang tua", () => {
     assert.equal((await app.request("/api/articles/mpasi-pertama")).status, 200);
   });
 });
+describe("unit: EMR + portal sessions coexist", () => {
+  const EMR = "http://localhost:5173", PORTAL = "http://localhost:5174";
+  const pick = (r, name) => (r.headers.getSetCookie?.() || []).find((s) => s.startsWith(name + "="))?.split(";")[0] ?? "";
+  it("separate cookies per app; /api/me follows Origin; portal logout keeps EMR", async () => {
+    const s = await app.request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json", origin: EMR }, body: JSON.stringify({ email: "dokter@asakita.demo", password: "prototype" }) });
+    const p = await app.request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json", origin: PORTAL }, body: JSON.stringify({ email: "alya@example.com", password: "prototype" }) });
+    const staff = pick(s, "asakita"), portal = pick(p, "asakita_portal");
+    assert.ok(staff && portal, "both cookies set");
+    const both = `${staff}; ${portal.split("=")[0]}=${portal.split("=").slice(1).join("=")}`;
+    assert.equal((await (await app.request("/api/me", { headers: { Cookie: both, origin: EMR } })).json()).user.role, "dokter");
+    assert.equal((await (await app.request("/api/me", { headers: { Cookie: both, origin: PORTAL } })).json()).user.role, "parent");
+    assert.equal((await app.request("/api/dashboard/summary", { headers: { Cookie: both, origin: EMR } })).status, 200);
+    await app.request("/api/auth/logout", { method: "POST", headers: { Cookie: portal, origin: PORTAL } });
+    assert.equal((await (await app.request("/api/me", { headers: { Cookie: staff, origin: EMR } })).json()).user.role, "dokter");
+  });
+});

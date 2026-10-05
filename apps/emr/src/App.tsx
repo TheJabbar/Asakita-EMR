@@ -158,7 +158,7 @@ function useHash(): string {
 export default function App() {
   const h = useHash();
   const [me, setMe] = useState<any>(null);
-  useEffect(() => { const s = document.createElement("style"); s.textContent = css; document.head.append(s); api.get("/api/me").then((r) => setMe(r.user)).catch(() => {}); }, []);
+  useEffect(() => { const s = document.createElement("style"); s.textContent = css; document.head.append(s); api.get("/api/me").then((r) => setMe((cur: any) => cur || (r.user && r.user.role !== "parent" ? r.user : null))).catch(() => {}); }, []);
   if (!me) return <Login onOk={setMe} />;
   const R = h.replace("#", "");
   const nav = (p: string, ic: string, l: string, sec?: string) => (<>{sec && <div className="side-sec">{sec}</div>}<a href={"#" + p} className={R === p || (p !== "/" && R.startsWith(p)) ? "on" : ""}><span className="ic">{ic}</span>{l}</a></>);
@@ -215,7 +215,7 @@ function Login({ onOk }: any) {
     else setM("Gagal masuk (" + s + ").");
     setBusy(false);
   };
-  const go = (body: any, url: string) => { setBusy(true); setM(""); setOk(""); api.post(url, body).then((r) => onOk(r.user)).catch(fail); };
+  const go = (body: any, url: string) => { setBusy(true); setM(""); setOk(""); api.post(url, body).then((r) => { if (r.user && r.user.role === "parent") { setBusy(false); setM("Akun ini akun orang tua — buka portal di :5174, bukan EMR."); return; } onOk(r.user); }).catch(fail); };
   return <div className="lg">
     <aside className="lg-brand">
       <div className="lg-mark">♡</div>
