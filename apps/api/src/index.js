@@ -234,8 +234,7 @@ app.get("/api/visits", need(...STAFF), (c) => {
   run("INSERT INTO visits(id,child_id,appointment_id,date,visit_type,status) VALUES(?,?,?,?,?,?)", id, b.child_id, b.appointment_id || null, b.date || new Date().toISOString().slice(0, 10), b.visit_type || "Konsultasi", "draft");
   return c.json({ id }, 201);
 });
-app.put("/api/visits/:id/soap", need("owner", "dokter"), bodyLimit, async (c) => {
-  const v = row("SELECT * FROM visits WHERE id=?", c.req.param("id"));
+app.put("/api/visits/:id/soap", need("owner", "dokter"), bodyLimit, async (c) => {  const v = row("SELECT * FROM visits WHERE id=?", c.req.param("id"));
   if (!v) return err(c, "not_found", "visit tidak ada", 404);
   if (v.status === "final") return err(c, "locked", "SOAP final tidak bisa diubah", 409);
   const b = await c.req.json();
@@ -249,6 +248,16 @@ app.get("/api/visits/:id", need(...STAFF), (c) => {
   const v = row("SELECT * FROM visits WHERE id=?", c.req.param("id"));
   if (!v) return err(c, "not_found", "visit tidak ada", 404);
   return c.json({ ...v, soap: row("SELECT * FROM soap_notes WHERE visit_id=?", v.id) || {} });
+});
+// ponytail: drafts deletable, finals immutable (same rule as editing — audit trail stays intact)
+app.delete("/api/visits/:id", need("owner", "dokter"), async (c) => {
+  const v = row("SELECT * FROM visits WHERE id=?", c.req.param("id"));
+  if (!v) return err(c, "not_found", "visit tidak ada", 404);
+  if (v.status === "final") return err(c, "locked", "SOAP final tidak bisa dihapus", 409);
+  run("DELETE FROM soap_notes WHERE visit_id=?", v.id);
+  run("DELETE FROM visits WHERE id=?", v.id);
+  audit(c.get("user").id, "visit_delete", "visit", v.id, { child_id: v.child_id });
+  return c.json({ ok: true });
 });
 
 // --- therapy / growth / milestones / screening ---

@@ -37,6 +37,10 @@ describe("unit: EMR loop", () => {
     assert.equal((await app.request(`/api/visits/${visitId}/soap`, { method: "PUT", headers: H(staff), body: JSON.stringify({ subjective: "x", status: "final" }) })).status, 409);
     const vl = await (await app.request(`/api/visits?childId=${childId}`, { headers: H(staff) })).json();
     assert.ok(vl.data.some((v) => v.id === visitId && v.has_soap === 1 && v.status === "final"));
+    assert.equal((await app.request(`/api/visits/${visitId}`, { method: "DELETE", headers: H(staff) })).status, 409); // final locked
+    const dv = await (await app.request("/api/visits", { method: "POST", headers: H(staff), body: JSON.stringify({ child_id: childId }) })).json();
+    assert.equal((await app.request(`/api/visits/${dv.id}`, { method: "DELETE", headers: H(staff) })).status, 200);
+    assert.equal((await app.request(`/api/visits/${dv.id}`, { headers: H(staff) })).status, 404);
   });
   it("therapy + growth + screening + report pdf + articles", async () => {
     typeId = (await (await app.request("/api/therapy-types", { headers: H(staff) })).json()).data[0].id;
