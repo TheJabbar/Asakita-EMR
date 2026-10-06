@@ -11,6 +11,7 @@ COPY . .
 RUN npm run build
 FROM node:22-alpine
 WORKDIR /app
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/src ./api/src
 COPY --from=build /app/apps/api/package.json ./api/
 COPY --from=build /app/apps/emr/dist ./public/emr
@@ -18,4 +19,4 @@ COPY --from=build /app/apps/portal/dist ./public/portal
 ENV DATABASE_URL=file:/data/asakita.db UPLOADS_DIR=/data/uploads PORT=8787
 VOLUME ["/data"]
 EXPOSE 8787
-CMD ["sh","-c","npm --prefix ./api install --omit=dev && node ./api/src/migrate.js && node ./api/src/seed.js; node ./api/src/index.js"]
+CMD ["sh","-c","node ./api/src/seed.js && exec node ./api/src/index.js"]

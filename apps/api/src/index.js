@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { serve } from "@hono/node-server";
-import { mkdirSync, writeFileSync, readFileSync, appendFileSync, existsSync } from "node:fs";
-import { basename, join } from "node:path";
+import { mkdirSync, writeFileSync, readFileSync, appendFileSync, existsSync, statSync } from "node:fs";
+import { basename, join, extname } from "node:path";
 import { getDb, migrate, uid, rows, row, run } from "./db.js";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "./auth.js";
 
@@ -476,15 +476,33 @@ app.post("/api/portal/reports/:id/email", P, bodyLimit, async (c) => {
   return c.json({ ok: true });
 });
 
+// --- static frontends + uploads (Fly single-image; ponytail: manual fs serve, no new dep) ---
+const DIST_EMR = existsSync("./public/emr") ? "./public/emr" : "./apps/emr/dist";
+const DIST_PORTAL = existsSync("./public/portal") ? "./public/portal" : "./apps/portal/dist";
+const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".woff2": "font/woff2" };
+function sendFile(c, base, rel) {
+  const fp = join(base, (rel || "index.html").replace(/^\/+/, ""));
+  const idx = join(base, "index.html");
+  let target = idx; // ponytail: directories (e.g. "/emr/") fall through to index.html
+  try { if (statSync(fp).isFile()) target = fp; } catch {}
+  if (!existsSync(target)) return c.notFound();
+  c.header("content-type", MIME[extname(target).toLowerCase()] || "application/octet-stream");
+  return c.body(new Uint8Array(readFileSync(target)));
+}
+app.get("/", (c) => c.redirect("/emr/"));
+app.get("/emr", (c) => c.redirect("/emr/"));
+app.get("/emr/*", (c) => sendFile(c, DIST_EMR, c.req.path.slice(4) || "/index.html"));
+app.get("/portal", (c) => c.redirect("/portal/"));
+app.get("/portal/*", (c) => sendFile(c, DIST_PORTAL, c.req.path.slice(7) || "/index.html"));
+app.get("/uploads/:fn", (c) => {
+  const fp = join(UP, basename(c.req.param("fn")));
+  if (!existsSync(fp)) return c.notFound();
+  c.header("content-type", /\.pdf$/i.test(fp) ? "application/pdf" : /\.png$/i.test(fp) ? "image/png" : "image/jpeg");
+  return c.body(new Uint8Array(readFileSync(fp)));
+});
+
 const port = Number(process.env.PORT || 8787);
 if (process.env.NODE_ENV !== "test") {
   serve({ fetch: app.fetch, port }, () => console.log(`api :${port}`));
-  try {
-    const { existsSync: ex } = await import("node:fs");
-    if (ex("./apps/emr/dist") || ex("./apps/portal/dist")) {
-      const { serveStatic } = await import("@hono/node-server/serve-static").catch(() => ({}));
-      void serveStatic;
-    }
-  } catch {}
 }
 export default app;

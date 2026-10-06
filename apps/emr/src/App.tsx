@@ -1,6 +1,7 @@
 // ponytail: one-file EMR — hash routes, plain fetch, no router lib; CSS-injected design system (no new deps)
 import React, { useEffect, useMemo, useRef, useState } from "react";
-const API = (import.meta as any).env?.VITE_API_URL || "http://localhost:8787";
+// ponytail: same-origin default (Fly serves API+UI on one host); dev uses vite proxy below
+const API = (import.meta as any).env?.VITE_API_URL || "";
 const j = (r: Response) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); };
 const api = {
   get: (p: string) => fetch(API + p, { credentials: "include" }).then(j),
