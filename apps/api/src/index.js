@@ -361,6 +361,19 @@ app.post("/api/users", need("owner", "dokter"), bodyLimit, async (c) => {
   run("INSERT INTO users(id,name,email,password_hash,role,created_at) VALUES(?,?,?,?,?,?)", id, b.name || b.email, b.email, hashPassword(b.password || "prototype"), b.role || "admin", new Date().toISOString());
   return c.json({ id }, 201);
 });
+// ponytail: link self-registered parent (Google/Daftar) to an existing child — the only write path to parent_children besides seed/import
+app.post("/api/parent-links", need("owner", "dokter", "admin"), bodyLimit, async (c) => {
+  const { email, child_id, relation } = await c.req.json().catch(() => ({}));
+  if (!email?.includes("@") || !child_id) return err(c, "invalid", "email + child_id wajib", 400);
+  const u = row("SELECT id FROM users WHERE email=?", email);
+  if (!u) return err(c, "not_found", "akun ortu tidak ada — minta ortu Daftar / Masuk Google dulu", 404);
+  if (!row("SELECT id FROM children WHERE id=?", child_id)) return err(c, "not_found", "pasien tidak ada", 404);
+  let p = row("SELECT id FROM parents WHERE user_id=?", u.id);
+  if (!p) { const pid = uid("p"); run("INSERT INTO parents(id,user_id) VALUES(?,?)", pid, u.id); p = { id: pid }; }
+  run("INSERT OR IGNORE INTO parent_children(parent_id,child_id,relation) VALUES(?,?,?)", p.id, child_id, relation || "Orang tua");
+  audit(c.get("user").id, "parent_link", "child", child_id, { parent: email });
+  return c.json({ ok: true });
+});
 
 // --- portal (parent-only, own children, curated: never raw SOAP) ---
 const P = need("parent");

@@ -323,7 +323,7 @@ function Patients({ route, me }: any) {
           : <small style={{ opacity: .8 }}>Hanya dokter/owner yang dapat membuat kunjungan — Anda masuk sebagai <b>{me?.role}</b>.</small>}</div>
       <div className="tabs" role="tablist">{tabs.map((t) => <button key={t} role="tab" className={"tab" + (tab === t ? " on" : "")} onClick={() => setTab(t)}>{t}</button>)}</div>
       <div className="card">
-        {tab === "Ringkasan" && <div className="grid three"><div><small style={{ color: "#6d7c74" }}>Panggilan / alamat</small><p><b>{sel.nickname || "—"}</b> • {sel.address || "—"}</p></div><div><small style={{ color: "#6d7c74" }}>Sesi terapi tercatat</small><p><b>{sess.length} sesi</b> {sess[0] ? `• terakhir ${sess[0].date}` : ""}</p></div><div><small style={{ color: "#6d7c74" }}>Alergi</small><p><b>{sel.history?.allergies || "—"}</b></p></div></div>}
+        {tab === "Ringkasan" && <div><div className="grid three"><div><small style={{ color: "#6d7c74" }}>Panggilan / alamat</small><p><b>{sel.nickname || "—"}</b> • {sel.address || "—"}</p></div><div><small style={{ color: "#6d7c74" }}>Sesi terapi tercatat</small><p><b>{sess.length} sesi</b> {sess[0] ? `• terakhir ${sess[0].date}` : ""}</p></div><div><small style={{ color: "#6d7c74" }}>Alergi</small><p><b>{sel.history?.allergies || "—"}</b></p></div></div>{["owner", "dokter", "admin"].includes(me?.role) ? <LinkParent childId={id} /> : null}</div>}
         {tab === "Data Pribadi" && <table className="tbl"><tbody>{[["Nama lengkap", sel.full_name], ["Panggilan", sel.nickname], ["Lahir", sel.dob], ["Alamat", sel.address], ["Asuransi", sel.insurance]].map(([k, v]) => <tr key={k}><td style={{ color: "#6d7c74" }}>{k}</td><td><b>{v || "—"}</b></td></tr>)}</tbody></table>}
         {tab === "Riwayat Medis" && <div><p><b>Riwayat kelahiran</b><br />{sel.history?.birth_history || "—"}</p><p><b>Catatan khusus</b><br />{sel.history?.notes || "—"}</p><p>Alergi: <span className="pill">{sel.history?.allergies || "—"}</span></p></div>}
         {tab === "Dokumen" && <div>{(sel.documents || []).map((d: any) => <div key={d.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>📄 <b>{d.title}</b> <small style={{ color: "#6d7c74" }}>{d.kind} • {d.file_url}</small></div>)}{!sel.documents?.length && <div className="empty"><div className="big">📄</div>Belum ada dokumen. Upload akte / assessment / rujukan (PDF/JPG ≤10MB).</div>}<Upload childId={id} onDone={() => api.get("/api/patients/" + id).then(setSel)} /></div>}
@@ -336,6 +336,18 @@ function Patients({ route, me }: any) {
     <div className="toolbar"><input className="inp" placeholder="⌕ Saring nama / No. RM…" value={q} onChange={(e) => setQ(e.target.value)} />{me?.role === "terapis" ? <small style={{ color: "#6d7c74" }}>Anda masuk sebagai terapis (read-only di sini).</small> : <button className="btn btn-s" style={{ background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={add}>+ Tambah pasien</button>}</div>
     <div className="card" style={{ padding: 6 }}><table className="tbl"><thead><tr><th>Anak</th><th>No. RM</th><th>Usia</th><th>Status</th></tr></thead><tbody>{filtered.map((p: any) => <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => (location.hash = "#/patients/" + p.id)}><td><span className="avatar" style={{ display: "inline-grid", width: 32, height: 32, fontSize: 11, verticalAlign: "middle", marginRight: 10 }}>{initials(p.full_name)}</span><b>{p.full_name}</b></td><td>{p.mr_number}</td><td>{ageID(p.dob)}</td><td><span className={"pill " + pill(p.status || "aktif")}>{p.status || "aktif"}</span></td></tr>)}</tbody></table>
       {!filtered.length && <div className="empty"><div className="big">🔍</div>Tidak ada pasien cocok “{q}”.</div>}</div></div>;
+}
+
+// ponytail: link a self-registered parent account to this child (portal shows only linked children)
+function LinkParent({ childId }: any) {
+  const [em, setEm] = useState("");
+  const link = async () => {
+    if (!em.includes("@")) return alert("Isi email akun ortu (yang dipakai Daftar / Google).");
+    const rel = prompt("Hubungan dengan anak? (Ibu/Ayah/Wali)", "Orang tua") || "Orang tua";
+    try { await api.post("/api/parent-links", { email: em, child_id: childId, relation: rel }); alert("Terhubung — ortu kini melihat anak ini di portal."); setEm(""); }
+    catch (e: any) { alert("Gagal (" + e.message + ") — pastikan ortu sudah Daftar dulu."); }
+  };
+  return <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><span className="sub">🔗 Akun ortu:</span><input className="inp" style={{ maxWidth: 260 }} placeholder="email akun ortu…" value={em} onChange={(e) => setEm(e.target.value.trim())} /><button className="btn btn-s" onClick={link}>Hubungkan</button></div>;
 }
 
 function Upload({ childId, onDone }: any) {

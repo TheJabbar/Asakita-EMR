@@ -78,4 +78,16 @@ describe("security gate", () => {
     assert.equal((await J({ idToken: "x.y.z" })).status, 401); // malformed → reject before any network
     assert.ok("googleClientId" in await (await app.request("/api/config")).json());
   });
+  it("11 parent-links: staff links child, idempotent, others blocked", async () => {
+    const dok = await login("dokter@asakita.demo"), ter = await login("terapis@asakita.demo"), par = await login("alya@example.com");
+    const B = (cookie, body) => app.request("/api/parent-links", { method: "POST", headers: H(cookie), body: JSON.stringify(body) });
+    const kid = await (await app.request("/api/patients", { method: "POST", headers: H(dok.cookie), body: JSON.stringify({ full_name: "Link Kid", mr_number: "LK" + Date.now() }) })).json();
+    assert.equal((await B(dok.cookie, { email: "budi@example.com", child_id: kid.id })).status, 200);
+    assert.equal((await B(dok.cookie, { email: "budi@example.com", child_id: kid.id })).status, 200); // idempotent
+    const kids = await (await app.request("/api/portal/children", { headers: H((await login("budi@example.com")).cookie) })).json();
+    assert.ok(kids.data.some((k) => k.id === kid.id));
+    assert.equal((await B(dok.cookie, { email: "nobody@x.id", child_id: kid.id })).status, 404);
+    assert.equal((await B(ter.cookie, { email: "budi@example.com", child_id: kid.id })).status, 403);
+    assert.equal((await B(par.cookie, { email: "budi@example.com", child_id: kid.id })).status, 403);
+  });
 });
