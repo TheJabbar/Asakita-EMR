@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: asakita-emr
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/healthz
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        value: file:/data/asakita.db
+      - key: UPLOADS_DIR
+        value: /data/uploads
+      - key: JWT_SECRET
+        sync: false
+    disk:
+      name: asakita-data
+      mountPath: /data
+      sizeGB: 1
