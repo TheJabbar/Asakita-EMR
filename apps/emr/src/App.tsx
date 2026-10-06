@@ -352,16 +352,30 @@ function LinkParent({ childId }: any) {
   return <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><span className="sub">🔗 Akun ortu:</span><input className="inp" style={{ maxWidth: 260 }} placeholder="email akun ortu…" value={em} onChange={(e) => setEm(e.target.value.trim())} /><button className="btn btn-s" onClick={link}>Hubungkan</button></div>;
 }
 
-// ponytail: staff edit child data here (portal stays read-only by design); key={id} at call site remounts per patient
+// ponytail: staff edit child data here (portal stays read-only by design); key={id} at call site remounts per patient. Mirrors server validation — server still enforces.
 function EditChild({ sel, onDone }: any) {
   const [f, setF] = useState<any>({ ...sel });
   const [msg, setMsg] = useState("");
   const set = (k: string, v: any) => { setF((p: any) => ({ ...p, [k]: v })); setMsg(""); };
-  const save = () => api.put("/api/patients/" + sel.id, f).then(() => { setMsg("✓ Tersimpan."); onDone(); }).catch((e: any) => setMsg("Gagal (" + e.message + ")"));
+  const save = () => {
+    const e: string[] = [];
+    if (!String(f.full_name || "").trim()) e.push("Nama lengkap wajib.");
+    if (!/^[A-Za-z0-9-]{1,20}$/.test(String(f.mr_number || ""))) e.push("No. RM hanya huruf/angka/-.");
+    if (f.dob && !/^\d{4}-\d{2}-\d{2}$/.test(f.dob)) e.push("Tgl lahir format YYYY-MM-DD.");
+    if (f.dob && f.dob > new Date().toISOString().slice(0, 10)) e.push("Tgl lahir tidak boleh masa depan.");
+    const w = String(f.birth_weight_kg ?? "").replace(",", ".");
+    if (w !== "" && (Number.isNaN(Number(w)) || +w < 0.3 || +w > 10)) e.push("BB lahir 0,3–10 kg.");
+    const l = String(f.birth_length_cm ?? "").replace(",", ".");
+    if (l !== "" && (Number.isNaN(Number(l)) || +l < 20 || +l > 70)) e.push("PB lahir 20–70 cm.");
+    if (e.length) { setMsg(e.join(" ")); return; }
+    api.put("/api/patients/" + sel.id, { ...f, birth_weight_kg: w === "" ? null : +w, birth_length_cm: l === "" ? null : +l })
+      .then(() => { setMsg("✓ Tersimpan."); onDone(); }).catch((er: any) => setMsg("Gagal (" + er.message + ")"));
+  };
   const inp = (k: string, label: string) => <div><label className="lbl">{label}</label><input className="inp" value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)} /></div>;
+  const sel2 = (k: string, label: string, opts: string[]) => <div><label className="lbl">{label}</label><select className="inp" value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)}><option value="">—</option>{opts.map((o) => <option key={o} value={o}>{o}</option>)}</select></div>;
   return <div><div className="fgrid">{inp("mr_number", "No. RM")}{inp("full_name", "Nama lengkap")}</div>
     <div className="fgrid" style={{ marginTop: 10 }}>{inp("nickname", "Panggilan")}{inp("dob", "Tgl lahir (YYYY-MM-DD)")}</div>
-    <div className="fgrid" style={{ marginTop: 10 }}>{inp("gender", "Jenis kelamin")}{inp("blood_type", "Gol. darah")}</div>
+    <div className="fgrid" style={{ marginTop: 10 }}>{sel2("gender", "Jenis kelamin", ["Laki-laki", "Perempuan"])}{sel2("blood_type", "Gol. darah", ["A", "B", "AB", "O"])}</div>
     <div className="fgrid" style={{ marginTop: 10 }}>{inp("birth_weight_kg", "BB lahir (kg)")}{inp("birth_length_cm", "PB lahir (cm)")}</div>
     <div className="fgrid" style={{ marginTop: 10 }}>{inp("address", "Alamat")}{inp("insurance", "Asuransi")}</div>
     <button className="btn btn-p btn-s" style={{ marginTop: 12 }} onClick={save}>Simpan perubahan</button>

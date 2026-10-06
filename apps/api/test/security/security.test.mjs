@@ -102,4 +102,16 @@ describe("security gate", () => {
     assert.equal(await (await P(dok.cookie, a.id, { birth_weight_kg: "berat" })).status, 400);
     assert.equal(await (await P(ter.cookie, a.id, { nickname: "x" })).status, 403);
   });
+  it("13 patients PUT validation: bad dob/blood/gender/range/mr rejected, comma-decimal ok", async () => {
+    const dok = await login("dokter@asakita.demo");
+    const kid = await (await app.request("/api/patients", { method: "POST", headers: H(dok.cookie), body: JSON.stringify({ full_name: "Valid Kid", mr_number: "VK" + Date.now() }) })).json();
+    const P = (body) => app.request(`/api/patients/${kid.id}`, { method: "PUT", headers: H(dok.cookie), body: JSON.stringify(body) });
+    for (const bad of [
+      { full_name: "  " }, { mr_number: "MR 12!" }, { dob: "12-01-2023" }, { dob: "2023-02-30" },
+      { dob: "2999-01-01" }, { blood_type: "X" }, { gender: "Unknown" },
+      { birth_weight_kg: 0.1 }, { birth_weight_kg: 25 }, { birth_length_cm: 10 }, { birth_length_cm: 200 },
+    ]) assert.equal(await (await P(bad)).status, 400, JSON.stringify(bad));
+    assert.equal(await (await P({ birth_weight_kg: "3,1" })).status, 200); // ID decimal comma tolerated
+    assert.equal((await (await app.request(`/api/patients/${kid.id}`, { headers: H(dok.cookie) })).json()).birth_weight_kg, 3.1);
+  });
 });

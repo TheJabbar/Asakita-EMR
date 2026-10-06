@@ -177,16 +177,44 @@ app.get("/api/patients/:id", need(...STAFF), (c) => {
   return c.json({ ...ch, history: row("SELECT * FROM medical_history WHERE child_id=?", ch.id) || {}, documents: rows("SELECT * FROM documents WHERE child_id=?", ch.id) });
 });
 const CHILD_FIELDS = ["full_name", "nickname", "dob", "gender", "blood_type", "birth_weight_kg", "birth_length_cm", "address", "insurance", "mr_number"];
+const BLOOD_TYPES = ["A", "B", "AB", "O"];
+const GENDERS = ["Laki-laki", "Perempuan"];
+function childFieldError(f, v) { // ponytail: single validator — server is the trust boundary, form mirrors it
+  if (f === "full_name" && !v) return "nama lengkap wajib";
+  if (f === "mr_number" && !/^[A-Za-z0-9-]{1,20}$/.test(v || "")) return "No. RM hanya huruf/angka/- (maks 20)";
+  if (f === "dob" && v) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return "tgl lahir format YYYY-MM-DD";
+    const [y, m, d] = v.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return "tgl lahir tidak valid";
+    if (v > new Date().toISOString().slice(0, 10)) return "tgl lahir tidak boleh masa depan";
+  }
+  if (f === "gender" && v && !GENDERS.includes(v)) return "jenis kelamin: Laki-laki/Perempuan";
+  if (f === "blood_type" && v && !BLOOD_TYPES.includes(v)) return "gol. darah: A/B/AB/O";
+  if ((f === "birth_weight_kg" || f === "birth_length_cm") && v !== null && v !== "") {
+    const n = Number(String(v).replace(",", ".")); // tolerate ID decimal comma
+    if (Number.isNaN(n)) return (f === "birth_weight_kg" ? "BB" : "PB") + " lahir harus angka";
+    if (f === "birth_weight_kg" && (n < 0.3 || n > 10)) return "BB lahir 0,3–10 kg";
+    if (f === "birth_length_cm" && (n < 20 || n > 70)) return "PB lahir 20–70 cm";
+    return n; // normalized number out (not an error)
+  }
+  if (f === "nickname" && String(v || "").length > 50) return "panggilan maks 50 karakter";
+  if (f === "address" && String(v || "").length > 200) return "alamat maks 200 karakter";
+  if (f === "insurance" && String(v || "").length > 50) return "asuransi maks 50 karakter";
+  return null;
+}
 app.put("/api/patients/:id", need("owner", "dokter", "admin"), bodyLimit, async (c) => {
   const b = await c.req.json(); const id = c.req.param("id");
   if (!row("SELECT id FROM children WHERE id=?", id)) return err(c, "not_found", "pasien tidak ada", 404);
-  if (b.mr_number && row("SELECT id FROM children WHERE mr_number=? AND id!=?", b.mr_number, id)) return err(c, "exists", "No. RM sudah dipakai", 409);
+  if (b.mr_number && row("SELECT id FROM children WHERE mr_number=? AND id!=?", String(b.mr_number).trim(), id)) return err(c, "exists", "No. RM sudah dipakai", 409);
   const sets = [], vals = []; // ponytail: allowlist-built SET — only provided keys update, no mass assignment
   for (const f of CHILD_FIELDS) {
     if (b[f] === undefined) continue;
     let v = typeof b[f] === "string" ? b[f].trim() : b[f];
     if ((f === "birth_weight_kg" || f === "birth_length_cm") && (v === "" || v === null)) v = null;
-    if ((f === "birth_weight_kg" || f === "birth_length_cm") && v !== null && Number.isNaN(Number(v))) return err(c, "invalid", f + " harus angka", 400);
+    const bad = childFieldError(f, v);
+    if (typeof bad === "string") return err(c, "invalid", bad, 400);
+    if (typeof bad === "number") v = bad;
     sets.push(`${f}=?`); vals.push(v);
   }
   if (!sets.length) return err(c, "invalid", "tidak ada perubahan", 400);
