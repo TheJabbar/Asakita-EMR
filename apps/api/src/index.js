@@ -3,13 +3,25 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { serve } from "@hono/node-server";
 import { mkdirSync, writeFileSync, readFileSync, appendFileSync, existsSync, statSync } from "node:fs";
 import { basename, join, extname } from "node:path";
-import { getDb, migrate, uid, rows, row, run } from "./db.js";
+import { getDb, migrate, uid, rows, row, run, dbPath } from "./db.js";
 import { hashPassword, verifyPassword, signToken, verifyToken, verifyGoogleIdToken } from "./auth.js";
+import { log } from "./log.js";
 
 migrate();
 const app = new Hono();
 const UP = process.env.UPLOADS_DIR || "./data/uploads";
 mkdirSync(UP, { recursive: true });
+
+// ponytail: one-line access log — /api/* at info, pages/assets at debug, 5xx at error. Never logs bodies/tokens.
+app.use("*", async (c, next) => {
+  const t = Date.now();
+  await next();
+  const ms = Date.now() - t;
+  const line = `${c.req.method} ${c.req.path} ${c.res.status} ${ms}ms`;
+  if (c.res.status >= 500) log.error(line);
+  else if (c.req.path.startsWith("/api/")) log.info(line);
+  else log.debug(line);
+});
 
 // --- security headers + CORS (never * with credentials; reflect allowlisted origin) ---
 // ponytail: comma-separated allowlist so EMR (:5173) + portal (:5174) both work in dev
@@ -562,6 +574,8 @@ app.get("/uploads/:fn", (c) => {
 
 const port = Number(process.env.PORT || 8787);
 if (process.env.NODE_ENV !== "test") {
-  serve({ fetch: app.fetch, port }, () => console.log(`api :${port}`));
+  serve({ fetch: app.fetch, port }, () => log.info("api listening", {
+    port, db: dbPath(), uploads: UP, emr: DIST_EMR, portal: DIST_PORTAL, google: !!process.env.GOOGLE_CLIENT_ID,
+  }));
 }
 export default app;

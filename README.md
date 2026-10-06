@@ -87,6 +87,7 @@ Point the frontends at the API: `apps/emr/.env` / `apps/portal/.env` → `VITE_A
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | CORS origin (never `*` with credentials) |
 | `JWT_SECRET` | `dev-secret-change-me` | **Set in prod** — signs auth cookies |
 | `GOOGLE_CLIENT_ID` | _(unset)_ | Google OAuth client ID — enables the real "Masuk dengan Google" button (ID token verified server-side; unset = button hidden). Create at Google Cloud Console → APIs & Services → Credentials; add the app URL under Authorized JavaScript origins |
+| `LOG_LEVEL` | `info` | Log verbosity: `debug` (every request incl. pages/assets), `info` (API requests + boot, default), `warn`, `error`. Logs go to stdout → visible in Render Logs |
 | `VITE_API_URL` | `http://localhost:8787` | Baked into frontend builds |
 
 ## Serving frontends
