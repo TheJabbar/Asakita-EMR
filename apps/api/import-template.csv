@@ -1,0 +1,3 @@
+parent_name,parent_email,parent_password,parent_phone,parent_address,relation,mr_number,child_full_name,child_nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,child_address,insurance,birth_history,allergies,notes
+Ibu Contoh,contoh.ibu@contoh.id,,+62 812-0000-001,"Jl. Contoh No. 1, Sorowako",Ibu,0009001,Anak Contoh Satu,Contoh,2023-05-10,Laki-laki,O,3.2,49,"Jl. Contoh No. 1, Sorowako",Pribadi,"Lahir cukup bulan, BB 3.2 kg.","-",Pemantauan bahasa.
+Ayah Contoh,contoh.ayah@contoh.id,rahasia123,+62 812-0000-002,"Jl. Contoh No. 2, Makassar",Ayah,0009002,Anak Contoh Dua,Dua,2022-11-20,Perempuan,A,2.9,47,"Jl. Contoh No. 2, Makassar",BPJS,"Lahir 37 minggu.",Susu sapi,Fokus motorik halus.

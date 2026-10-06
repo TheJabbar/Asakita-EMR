@@ -39,6 +39,12 @@ podman compose down -v     # danger: deletes the SQLite volume too
 
 First boot seeds demo accounts, two children, appointments, growth data and 5 articles (see `apps/api/src/seed.js`; re-running is idempotent).
 
+Bulk import real data from Excel: fill `apps/api/import-template.csv` (or Save As CSV from Excel — `,` and `;` separators both work), then:
+
+```powershell
+npm run db:import -- pasien.csv   # parents + children + links; existing mr_number rows are skipped, password defaults to `prototype` unless the column sets one
+```
+
 Data persists in the named volume `asakita-data` (`/data/asakita.db` + `/data/uploads`). To back it up:
 
 ```powershell
