@@ -371,14 +371,14 @@ function EditChild({ sel, onDone }: any) {
     api.put("/api/patients/" + sel.id, { ...f, birth_weight_kg: w === "" ? null : +w, birth_length_cm: l === "" ? null : +l })
       .then(() => { setMsg("✓ Tersimpan."); onDone(); }).catch((er: any) => setMsg("Gagal (" + er.message + ")"));
   };
-  const inp = (k: string, label: string) => <div><label className="lbl">{label}</label><input className="inp" value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)} /></div>;
+  const inp = (k: string, label: string, t = "text") => <div><label className="lbl">{label}</label><input className="inp" type={t} value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)} /></div>;
   const sel2 = (k: string, label: string, opts: string[]) => <div><label className="lbl">{label}</label><select className="inp" value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)}><option value="">—</option>{opts.map((o) => <option key={o} value={o}>{o}</option>)}</select></div>;
   return <div><div className="fgrid">{inp("mr_number", "No. RM")}{inp("full_name", "Nama lengkap")}</div>
-    <div className="fgrid" style={{ marginTop: 10 }}>{inp("nickname", "Panggilan")}{inp("dob", "Tgl lahir (YYYY-MM-DD)")}</div>
+    <div className="fgrid" style={{ marginTop: 10 }}>{inp("nickname", "Panggilan")}{inp("dob", "Tgl lahir", "date")}</div>
     <div className="fgrid" style={{ marginTop: 10 }}>{sel2("gender", "Jenis kelamin", ["Laki-laki", "Perempuan"])}{sel2("blood_type", "Gol. darah", ["A", "B", "AB", "O"])}</div>
     <div className="fgrid" style={{ marginTop: 10 }}>{inp("birth_weight_kg", "BB lahir (kg)")}{inp("birth_length_cm", "PB lahir (cm)")}</div>
     <div className="fgrid" style={{ marginTop: 10 }}>{inp("address", "Alamat")}{inp("insurance", "Asuransi")}</div>
-    <button className="btn btn-p btn-s" style={{ marginTop: 12 }} onClick={save}>Simpan perubahan</button>
+    <button className="btn btn-s" style={{ marginTop: 12, background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={save}>Simpan perubahan</button>
     {msg && <span style={{ marginLeft: 10, fontSize: 13 }}>{msg}</span>}</div>;
 }
 
