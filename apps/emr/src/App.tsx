@@ -208,7 +208,7 @@ function Topbar({ me }: any) {
 }
 
 function Login({ onOk }: any) {
-  const [e, setE] = useState("dokter@asakita.demo"), [p, setP] = useState("prototype"), [m, setM] = useState(""), [ok, setOk] = useState(""), [busy, setBusy] = useState(false), [show, setShow] = useState(false);
+  const [e, setE] = useState(""), [p, setP] = useState(""), [m, setM] = useState(""), [ok, setOk] = useState(""), [busy, setBusy] = useState(false), [show, setShow] = useState(false);
   const fail = (err: any) => {
     const s = String(err?.message || err);
     if (s.includes("401")) setM("Email / password salah. Coba lagi.");
@@ -246,7 +246,7 @@ function Login({ onOk }: any) {
           <button className="btn btn-g" disabled={busy} onClick={() => { const nm = prompt("Nama lengkap Anda?", e.split("@")[0]); if (nm) go({ email: e, name: nm }, "/api/auth/google"); }}>Masuk dengan Akun Google</button>
         </div>
         {m && <div className="lg-err" role="alert">{m}</div>}
-        {!m && <div className="lg-ok">Demo — semua akun memakai password <b>prototype</b> (dokter / terapis / admin / owner)</div>}
+        {!m && <div className="lg-ok">Masuk dengan akun staff yang terdaftar di klinik.</div>}
         <p style={{ textAlign: "right", marginTop: 12 }}><button className="linklike" onClick={() => { api.post("/api/auth/forgot", { email: e }); setOk("Jika email terdaftar, link reset dicatat di server."); }}>Lupa password?</button></p>
         {ok && <div className="lg-ok">{ok}</div>}
       </section>

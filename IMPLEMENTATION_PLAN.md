@@ -218,3 +218,13 @@ Test accounts (seeded, passwords in `apps/api/src/seed.ts` only, never prod): `d
 
 ## 11. Explicit non-goals (do NOT build)
 SATUSEHAT integration, billing/payments beyond read-only Billing tab, realtime chat/notifications (static lists suffice), native apps, multi-clinic tenancy. Skipped → add when clinic operates ≥3 months on this MVP and asks.
+
+## 13. Build log — post-plan changes (as-built; deploy target in §9 superseded)
+- **Deploy: Cloudflare (§9) → Render.** Fly.io tried first, abandoned (provisioned `fly.dev` hostname never got DNS). Prod = Render Blueprint (`render.yaml`: Docker, Singapore, 1GB disk at `/data`, healthcheck `/api/healthz`, auto-deploy on push to `main`).
+- **Single-image serving.** The API serves both frontends: EMR at `/emr/`, portal at `/portal/`, `/` → `/emr/`, uploads at `/uploads/:fn` (manual fs serve in `apps/api/src/index.js`, no new dep). `Dockerfile` bakes `node_modules` (no runtime `npm install`); `CMD` runs `seed.js` (idempotent) then the server.
+- **Vite base paths.** `base: "/emr/"` + `base: "/portal/"` so hashed assets resolve under the mount path (absolute `/assets/*` 404'd when pages are served from subpaths → blank pages despite 200 HTML).
+- **Same-origin API.** `VITE_API_URL` defaults to `""` (same host, no prod CORS config); dev uses vite `proxy: {"/api": "http://localhost:8787"}`.
+- **CSP fix.** API sends `default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com`. Required because both apps inject all CSS via a JS-created `<style>` tag, which bare `default-src 'self'` blocks (page rendered as raw unstyled text; invisible under vite dev, which sends no CSP).
+- **CSV bulk import.** `apps/api/src/import-csv.js` + `apps/api/import-template.csv`, run via `npm run db:import -- file.csv`. CSV-only (no `xlsx` dep — Excel users Save As CSV). Handles `,`/`;` separators, quotes, BOM, ID decimal commas (`3,1`→`3.1`); one row = parent user + `parents` row + child + history + link; `mr_number`-keyed idempotent re-runs; parent password defaults to `prototype` unless the column sets one.
+- **Login hardening.** Demo credential prefills removed from both logins (were `useState("dokter@asakita.demo"/"prototype")` and `("alya@example.com"/"prototype")`); EMR demo-password banner replaced with neutral text. `autoComplete="username"/"current-password"` kept (password-manager/a11y best practice, unrelated to the hardcoded values).
+- **Actual test files** (vs §12.1 sketch): `apps/api/test/unit/{api,portal,import}.test.mjs` on `node:test` + `packages/shared` on vitest; security suite unchanged. All green.

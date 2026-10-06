@@ -127,7 +127,7 @@ export default function App() {
 }
 
 function Welcome({ onOk }: any) {
-  const [e, setE] = useState("alya@example.com"), [p, setP] = useState("prototype"), [n, setN] = useState("Bunda Alya"), [m, setM] = useState(""), [mode, setMode] = useState<"in" | "up">("in");
+  const [e, setE] = useState(""), [p, setP] = useState(""), [n, setN] = useState(""), [m, setM] = useState(""), [mode, setMode] = useState<"in" | "up">("in");
   const go = (url: string, body: any) => api.post(url, body).then((r) => {
     if (r.user && r.user.role !== "parent") { setM("Akun ini terdaftar sebagai staff (" + r.user.role + ") — portal ini khusus orang tua. Keluar dari EMR dulu atau pakai browser lain."); return; }
     onOk(r.user || { role: "parent", name: n });
