@@ -170,7 +170,7 @@ export default function App() {
       {nav("/", "⌂", "Dashboard", "Utama")}
       {nav("/patients", "◉", "Data Pasien", "Klinik")}
       {nav("/schedule", "▦", "Jadwal")}
-      {nav("/soap", "✚", "SOAP")}
+      {/* ponytail: no SOAP nav — notes only make sense inside a visit, opened from Data Pasien → Catatan (route stays for deep links) */}
       {nav("/therapy", "⬢", "Terapi")}
       {nav("/progress", "◭", "Tumbuh Kembang")}
       {nav("/reports", "▤", "Laporan")}
