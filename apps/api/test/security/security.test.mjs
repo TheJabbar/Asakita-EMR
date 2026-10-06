@@ -86,6 +86,10 @@ describe("security gate", () => {
     assert.equal((await B(dok.cookie, { email: "budi@example.com", child_id: kid.id })).status, 200); // idempotent
     const kids = await (await app.request("/api/portal/children", { headers: H((await login("budi@example.com")).cookie) })).json();
     assert.ok(kids.data.some((k) => k.id === kid.id));
+    const all = await (await app.request("/api/patients", { headers: H(dok.cookie) })).json();
+    assert.match(all.data.find((k) => k.id === kid.id).parent_names || "", /Budi/);
+    const one = await (await app.request(`/api/patients/${kid.id}`, { headers: H(dok.cookie) })).json();
+    assert.ok(one.parents.some((p) => p.email === "budi@example.com"));
     assert.equal((await B(dok.cookie, { email: "nobody@x.id", child_id: kid.id })).status, 404);
     assert.equal((await B(ter.cookie, { email: "budi@example.com", child_id: kid.id })).status, 403);
     assert.equal((await B(par.cookie, { email: "budi@example.com", child_id: kid.id })).status, 403);

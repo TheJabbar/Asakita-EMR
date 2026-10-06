@@ -171,8 +171,10 @@ app.get("/api/search", need(...STAFF), (c) => {
 });
 
 // --- patients ---
+// ponytail: parent names inlined per child (one query, no N+1) — powers the Ortu column
+const PARENTS_OF = `(SELECT group_concat(u.name || ' (' || COALESCE(pc.relation,'') || ')', ', ') FROM parent_children pc JOIN parents p ON p.id=pc.parent_id JOIN users u ON u.id=p.user_id WHERE pc.child_id=children.id)`;
 app.get("/api/patients", need(...STAFF), (c) =>
-  c.json({ data: rows("SELECT * FROM children ORDER BY full_name LIMIT 100"), total: row("SELECT COUNT(*) c FROM children").c }));
+  c.json({ data: rows(`SELECT children.*, ${PARENTS_OF} AS parent_names FROM children ORDER BY full_name LIMIT 100`), total: row("SELECT COUNT(*) c FROM children").c }));
 app.post("/api/patients", need("owner", "dokter", "admin"), bodyLimit, async (c) => {
   const b = await c.req.json();
   if (!b.full_name) return err(c, "invalid", "full_name wajib", 400);
@@ -186,7 +188,7 @@ app.post("/api/patients", need("owner", "dokter", "admin"), bodyLimit, async (c)
 app.get("/api/patients/:id", need(...STAFF), (c) => {
   const ch = row("SELECT * FROM children WHERE id=?", c.req.param("id"));
   if (!ch) return err(c, "not_found", "pasien tidak ada", 404);
-  return c.json({ ...ch, history: row("SELECT * FROM medical_history WHERE child_id=?", ch.id) || {}, documents: rows("SELECT * FROM documents WHERE child_id=?", ch.id) });
+  return c.json({ ...ch, history: row("SELECT * FROM medical_history WHERE child_id=?", ch.id) || {}, documents: rows("SELECT * FROM documents WHERE child_id=?", ch.id), parents: rows("SELECT u.name, u.email, pc.relation FROM parent_children pc JOIN parents p ON p.id=pc.parent_id JOIN users u ON u.id=p.user_id WHERE pc.child_id=?", ch.id) });
 });
 const CHILD_FIELDS = ["full_name", "nickname", "dob", "gender", "blood_type", "birth_weight_kg", "birth_length_cm", "address", "insurance", "mr_number"];
 const BLOOD_TYPES = ["A", "B", "AB", "O"];
