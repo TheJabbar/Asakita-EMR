@@ -218,6 +218,17 @@ function Login({ onOk }: any) {
     setBusy(false);
   };
   const go = (body: any, url: string) => { setBusy(true); setM(""); setOk(""); api.post(url, body).then((r) => { if (r.user && r.user.role === "parent") { setBusy(false); setM("Akun ini akun orang tua — buka portal di :5174, bukan EMR."); return; } onOk(r.user); }).catch(fail); };
+  // ponytail: real Google button (GIS) only when backend has GOOGLE_CLIENT_ID; client id comes from /api/config (no rebuild)
+  const [gcid, setGcid] = useState<string | null>(null);
+  useEffect(() => { fetch(API + "/api/config").then((r) => r.json()).then((c) => setGcid(c.googleClientId)).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!gcid) return;
+    const w = window as any;
+    const render = () => { w.google.accounts.id.initialize({ client_id: gcid, callback: (r: any) => go({ idToken: r.credential }, "/api/auth/google") }); w.google.accounts.id.renderButton(document.getElementById("gbtn"), { theme: "outline", size: "large" }); };
+    if (w.google?.accounts) { render(); return; }
+    if (document.getElementById("gsi")) { document.getElementById("gsi")!.addEventListener("load", render); return; }
+    const s = document.createElement("script"); s.id = "gsi"; s.src = "https://accounts.google.com/gsi/client"; (s as any).onload = render; document.head.append(s);
+  }, [gcid]);
   return <div className="lg">
     <aside className="lg-brand">
       <div className="lg-mark">♡</div>
@@ -243,7 +254,7 @@ function Login({ onOk }: any) {
           <button className="linklike" style={{ position: "absolute", right: 14, top: 15, textDecoration: "none" }} onClick={() => setShow(!show)}>{show ? "🙈" : "👁"}</button></div>
         <div style={{ display: "grid", gap: 10, marginTop: 20 }}>
           <button className="btn btn-p" disabled={busy} onClick={() => go({ email: e, password: p }, "/api/auth/login")}>{busy ? "Memeriksa…" : "Masuk →"}</button>
-          <button className="btn btn-g" disabled={busy} onClick={() => { const nm = prompt("Nama lengkap Anda?", e.split("@")[0]); if (nm) go({ email: e, name: nm }, "/api/auth/google"); }}>Masuk dengan Akun Google</button>
+          {gcid ? <div id="gbtn" style={{ display: "flex", justifyContent: "center" }} /> : null}
         </div>
         {m && <div className="lg-err" role="alert">{m}</div>}
         {!m && <div className="lg-ok">Masuk dengan akun staff yang terdaftar di klinik.</div>}

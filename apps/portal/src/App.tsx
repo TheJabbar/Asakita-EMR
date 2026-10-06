@@ -132,6 +132,17 @@ function Welcome({ onOk }: any) {
     if (r.user && r.user.role !== "parent") { setM("Akun ini terdaftar sebagai staff (" + r.user.role + ") — portal ini khusus orang tua. Keluar dari EMR dulu atau pakai browser lain."); return; }
     onOk(r.user || { role: "parent", name: n });
   }).catch(() => setM("Gagal — periksa email/password atau koneksi API."));
+  // ponytail: real Google button (GIS) only when backend has GOOGLE_CLIENT_ID; client id comes from /api/config (no rebuild)
+  const [gcid, setGcid] = useState<string | null>(null);
+  useEffect(() => { fetch(API + "/api/config").then((r) => r.json()).then((c) => setGcid(c.googleClientId)).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!gcid) return;
+    const w = window as any;
+    const render = () => { w.google.accounts.id.initialize({ client_id: gcid, callback: (r: any) => go("/api/auth/google", { idToken: r.credential }) }); w.google.accounts.id.renderButton(document.getElementById("gbtn"), { theme: "outline", size: "large" }); };
+    if (w.google?.accounts) { render(); return; }
+    if (document.getElementById("gsi")) { document.getElementById("gsi")!.addEventListener("load", render); return; }
+    const s = document.createElement("script"); s.id = "gsi"; s.src = "https://accounts.google.com/gsi/client"; (s as any).onload = render; document.head.append(s);
+  }, [gcid]);
   return <div className="phone"><div className="hero-login">
     <div className="brand"><div className="logo">♡</div><div><div className="brand-t serif">ASAKITA</div><div className="brand-s">Child Health Center<br />by dr. Imelda Hady, Sp.A</div></div></div>
     <div className="visual"><div className="tagline serif">Tumbuh bersama,<br />menuju generasi hebat.</div>
@@ -144,7 +155,7 @@ function Welcome({ onOk }: any) {
       {m && <p style={{ color: "#b42318", fontSize: 13 }}>{m}</p>}
       {mode === "in"
         ? <><button className="btn btn-p" style={{ marginTop: 12 }} onClick={() => go("/api/auth/login", { email: e, password: p })}>Masuk →</button>
-          <button className="btn btn-o" style={{ marginTop: 8 }} onClick={() => go("/api/auth/google", { email: e, name: n })}>Masuk dengan Google</button></>
+          {gcid ? <div id="gbtn" style={{ display: "flex", justifyContent: "center", marginTop: 8 }} /> : null}</>
         : <button className="btn btn-p" style={{ marginTop: 12 }} onClick={() => go("/api/auth/register-parent", { email: e, password: p, name: n }).then(() => go("/api/auth/login", { email: e, password: p }))}>Daftar akun →</button>}
       <button className="btn btn-soft" style={{ marginTop: 8 }} onClick={() => (location.hash = "#/education")}>Lanjut sebagai tamu</button>
     </div>

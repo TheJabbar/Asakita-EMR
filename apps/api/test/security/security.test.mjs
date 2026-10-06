@@ -71,4 +71,11 @@ describe("security gate", () => {
     const r = await app.request("/api/visits/x/soap", { method: "OPTIONS", headers: { Origin: "http://localhost:5173", "Access-Control-Request-Method": "PUT" } });
     assert.ok((r.headers.get("access-control-allow-methods") || "").includes("PUT"));
   });
+  it("10 google: no self-mint accounts (stub rejected), garbage token 401", async () => {
+    const J = (b) => app.request("/api/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
+    assert.equal((await J({})).status, 400); // idToken wajib
+    assert.equal((await J({ email: "boss@evil.id", name: "Boss" })).status, 400); // old stub path closed
+    assert.equal((await J({ idToken: "x.y.z" })).status, 401); // malformed → reject before any network
+    assert.ok("googleClientId" in await (await app.request("/api/config")).json());
+  });
 });

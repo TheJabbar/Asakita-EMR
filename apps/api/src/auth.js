@@ -1,5 +1,5 @@
-// ponytail: scrypt stdlib (no bcrypt dep) + HMAC JWT (no jose dep)
-import { scryptSync, randomBytes, timingSafeEqual, createHmac } from "node:crypto";
+// ponytail: scrypt stdlib (no bcrypt dep) + HMAC JWT (no jose dep) + Google RS256 verify (no oauth dep)
+import { scryptSync, randomBytes, timingSafeEqual, createHmac, createVerify, createPublicKey } from "node:crypto";
 const SECRET = () => process.env.JWT_SECRET || "dev-secret-change-me";
 
 export function hashPassword(pw) {
@@ -34,3 +34,29 @@ export function verifyToken(tok) {
   return payload;
 }
 export function getUser(c, dbRow) { return dbRow; } // placeholder for Workers swap
+
+let _gcerts = null, _gcertsAt = 0;
+export async function verifyGoogleIdToken(idToken) { // real Google verification, stdlib only; null = reject
+  const cid = process.env.GOOGLE_CLIENT_ID;
+  if (!cid) return null; // fail closed — set GOOGLE_CLIENT_ID to enable
+  try {
+    const [h, p, s] = String(idToken || "").split(".");
+    if (!h || !p || !s) return null;
+    const { kid } = JSON.parse(Buffer.from(h, "base64url").toString());
+    if (!kid) return null;
+    if (!_gcerts || Date.now() - _gcertsAt > 3600e3) {
+      const r = await fetch("https://www.googleapis.com/oauth2/v3/certs");
+      if (!r.ok) return null;
+      _gcerts = await r.json(); _gcertsAt = Date.now();
+    }
+    const jwk = (_gcerts.keys || []).find((k) => k.kid === kid);
+    if (!jwk) { _gcerts = null; return null; } // unknown kid (key rotated) → refetch next time
+    const sigOk = createVerify("RSA-SHA256").update(`${h}.${p}`)
+      .verify(createPublicKey({ key: jwk, format: "jwk" }), Buffer.from(s, "base64url"));
+    if (!sigOk) return null;
+    const g = JSON.parse(Buffer.from(p, "base64url").toString());
+    if (g.iss !== "accounts.google.com" && g.iss !== "https://accounts.google.com") return null;
+    if (g.aud !== cid || (g.exp || 0) * 1000 < Date.now() || !g.email || g.email_verified === false) return null;
+    return g; // {sub, email, name}
+  } catch { return null; }
+}

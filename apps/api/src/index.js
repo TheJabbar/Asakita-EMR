@@ -4,7 +4,7 @@ import { serve } from "@hono/node-server";
 import { mkdirSync, writeFileSync, readFileSync, appendFileSync, existsSync, statSync } from "node:fs";
 import { basename, join, extname } from "node:path";
 import { getDb, migrate, uid, rows, row, run } from "./db.js";
-import { hashPassword, verifyPassword, signToken, verifyToken } from "./auth.js";
+import { hashPassword, verifyPassword, signToken, verifyToken, verifyGoogleIdToken } from "./auth.js";
 
 migrate();
 const app = new Hono();
@@ -19,7 +19,7 @@ const PORTAL_ORIGINS = (process.env.PORTAL_ORIGINS || "http://localhost:5174").s
 app.use("*", async (c, next) => {
   await next();
   // ponytail: frontends inject all CSS via a JS-created <style> tag + load Google Fonts, so inline styles + font hosts must be allowed (scripts stay 'self'-only)
-  c.header("content-security-policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com");
+  c.header("content-security-policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' https://accounts.google.com; frame-src 'self' https://accounts.google.com; connect-src 'self' https://accounts.google.com");
   c.header("x-frame-options", "DENY");
   c.header("x-content-type-options", "nosniff");
   const reqOrigin = c.req.header("origin") || "";
@@ -98,14 +98,18 @@ app.post("/api/auth/login", bodyLimit, async (c) => {
   setSession(c, u);
   return c.json({ user: { id: u.id, name: u.name, email: u.email, role: u.role } });
 });
-app.post("/api/auth/google", bodyLimit, async (c) => { // ponytail: stub — verify OIDC when GOOGLE_CLIENT_ID set
-  const { email, name } = await c.req.json().catch(() => ({}));
-  if (!email || !String(email).includes("@")) return err(c, "invalid", "email required", 400);
-  let u = row("SELECT * FROM users WHERE email=?", email);
-  if (!u) {
+app.get("/api/config", (c) => c.json({ googleClientId: process.env.GOOGLE_CLIENT_ID || null })); // frontends read this, no rebuild needed
+app.post("/api/auth/google", bodyLimit, async (c) => {
+  const { idToken } = await c.req.json().catch(() => ({}));
+  if (!idToken) return err(c, "invalid", "idToken wajib", 400);
+  const g = await verifyGoogleIdToken(idToken);
+  if (!g) return err(c, "invalid", "token Google tidak valid", 401);
+  let u = row("SELECT * FROM users WHERE google_sub=?", g.sub) || row("SELECT * FROM users WHERE email=?", g.email);
+  if (u && !u.google_sub) run("UPDATE users SET google_sub=? WHERE id=?", g.sub, u.id); // link staff accounts too
+  if (!u) { // self-register as parent (portal flow); staff accounts must pre-exist to keep their role
     const id = uid("u");
-    run("INSERT INTO users(id,name,email,role,created_at) VALUES(?,?,?,?,?)", id, name || email, email, "parent", new Date().toISOString());
-    const p = uid("p"); run("INSERT INTO parents(id,user_id) VALUES(?,?)", p, id);
+    run("INSERT INTO users(id,name,email,google_sub,role,created_at) VALUES(?,?,?,?,?,?)", id, g.name || g.email, g.email, g.sub, "parent", new Date().toISOString());
+    run("INSERT INTO parents(id,user_id) VALUES(?,?)", uid("p"), id);
     u = row("SELECT * FROM users WHERE id=?", id);
   }
   setSession(c, u);

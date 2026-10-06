@@ -86,6 +86,7 @@ Point the frontends at the API: `apps/emr/.env` / `apps/portal/.env` → `VITE_A
 | `UPLOADS_DIR` | `./data/uploads` | Document uploads (served from `/data` volume in container) |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | CORS origin (never `*` with credentials) |
 | `JWT_SECRET` | `dev-secret-change-me` | **Set in prod** — signs auth cookies |
+| `GOOGLE_CLIENT_ID` | _(unset)_ | Google OAuth client ID — enables the real "Masuk dengan Google" button (ID token verified server-side; unset = button hidden). Create at Google Cloud Console → APIs & Services → Credentials; add the app URL under Authorized JavaScript origins |
 | `VITE_API_URL` | `http://localhost:8787` | Baked into frontend builds |
 
 ## Serving frontends
