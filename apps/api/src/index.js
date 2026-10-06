@@ -18,7 +18,8 @@ const ORIGINS = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_ORIGIN || 
 const PORTAL_ORIGINS = (process.env.PORTAL_ORIGINS || "http://localhost:5174").split(",").map((s) => s.trim());
 app.use("*", async (c, next) => {
   await next();
-  c.header("content-security-policy", "default-src 'self'");
+  // ponytail: frontends inject all CSS via a JS-created <style> tag + load Google Fonts, so inline styles + font hosts must be allowed (scripts stay 'self'-only)
+  c.header("content-security-policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com");
   c.header("x-frame-options", "DENY");
   c.header("x-content-type-options", "nosniff");
   const reqOrigin = c.req.header("origin") || "";
