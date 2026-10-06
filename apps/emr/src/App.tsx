@@ -174,7 +174,7 @@ export default function App() {
       {nav("/therapy", "⬢", "Terapi")}
       {nav("/progress", "◭", "Tumbuh Kembang")}
       {nav("/reports", "▤", "Laporan")}
-      {nav("/users", "⚿", "Role & User", "Sistem")}
+      {["owner", "dokter"].includes(me?.role) ? nav("/users", "⚿", "Role & User", "Sistem") : null}
       <div className="side-foot">Masuk sebagai <b>{me.role}</b><br /><button className="btn btn-s" style={{ marginTop: 10, width: "100%", color: "#fff", background: "#ffffff22", borderColor: "#ffffff33" }} onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include" }).then(() => setMe(null))}>Keluar</button></div>
     </nav>
     <main className="main">
@@ -324,7 +324,9 @@ function Patients({ route, me }: any) {
       <div className="tabs" role="tablist">{tabs.map((t) => <button key={t} role="tab" className={"tab" + (tab === t ? " on" : "")} onClick={() => setTab(t)}>{t}</button>)}</div>
       <div className="card">
         {tab === "Ringkasan" && <div><div className="grid three"><div><small style={{ color: "#6d7c74" }}>Panggilan / alamat</small><p><b>{sel.nickname || "—"}</b> • {sel.address || "—"}</p></div><div><small style={{ color: "#6d7c74" }}>Sesi terapi tercatat</small><p><b>{sess.length} sesi</b> {sess[0] ? `• terakhir ${sess[0].date}` : ""}</p></div><div><small style={{ color: "#6d7c74" }}>Alergi</small><p><b>{sel.history?.allergies || "—"}</b></p></div></div>{["owner", "dokter", "admin"].includes(me?.role) ? <LinkParent childId={id} /> : null}</div>}
-        {tab === "Data Pribadi" && <table className="tbl"><tbody>{[["Nama lengkap", sel.full_name], ["Panggilan", sel.nickname], ["Lahir", sel.dob], ["Alamat", sel.address], ["Asuransi", sel.insurance]].map(([k, v]) => <tr key={k}><td style={{ color: "#6d7c74" }}>{k}</td><td><b>{v || "—"}</b></td></tr>)}</tbody></table>}
+        {tab === "Data Pribadi" && (["owner", "dokter", "admin"].includes(me?.role)
+          ? <EditChild key={id} sel={sel} onDone={() => api.get("/api/patients/" + id).then(setSel)} />
+          : <table className="tbl"><tbody>{[["Nama lengkap", sel.full_name], ["Panggilan", sel.nickname], ["Lahir", sel.dob], ["Alamat", sel.address], ["Asuransi", sel.insurance]].map(([k, v]) => <tr key={k}><td style={{ color: "#6d7c74" }}>{k}</td><td><b>{v || "—"}</b></td></tr>)}</tbody></table>)}
         {tab === "Riwayat Medis" && <div><p><b>Riwayat kelahiran</b><br />{sel.history?.birth_history || "—"}</p><p><b>Catatan khusus</b><br />{sel.history?.notes || "—"}</p><p>Alergi: <span className="pill">{sel.history?.allergies || "—"}</span></p></div>}
         {tab === "Dokumen" && <div>{(sel.documents || []).map((d: any) => <div key={d.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>📄 <b>{d.title}</b> <small style={{ color: "#6d7c74" }}>{d.kind} • {d.file_url}</small></div>)}{!sel.documents?.length && <div className="empty"><div className="big">📄</div>Belum ada dokumen. Upload akte / assessment / rujukan (PDF/JPG ≤10MB).</div>}<Upload childId={id} onDone={() => api.get("/api/patients/" + id).then(setSel)} /></div>}
         {tab === "Billing" && <div><p>Asuransi: <b>{sel.insurance || "Pribadi"}</b></p><p className="sub" style={{ margin: 0 }}>Billing read-only di MVP — modul pembayaran penuh non-goal.</p></div>}
@@ -348,6 +350,22 @@ function LinkParent({ childId }: any) {
     catch (e: any) { alert("Gagal (" + e.message + ") — pastikan ortu sudah Daftar dulu."); }
   };
   return <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><span className="sub">🔗 Akun ortu:</span><input className="inp" style={{ maxWidth: 260 }} placeholder="email akun ortu…" value={em} onChange={(e) => setEm(e.target.value.trim())} /><button className="btn btn-s" onClick={link}>Hubungkan</button></div>;
+}
+
+// ponytail: staff edit child data here (portal stays read-only by design); key={id} at call site remounts per patient
+function EditChild({ sel, onDone }: any) {
+  const [f, setF] = useState<any>({ ...sel });
+  const [msg, setMsg] = useState("");
+  const set = (k: string, v: any) => { setF((p: any) => ({ ...p, [k]: v })); setMsg(""); };
+  const save = () => api.put("/api/patients/" + sel.id, f).then(() => { setMsg("✓ Tersimpan."); onDone(); }).catch((e: any) => setMsg("Gagal (" + e.message + ")"));
+  const inp = (k: string, label: string) => <div><label className="lbl">{label}</label><input className="inp" value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)} /></div>;
+  return <div><div className="fgrid">{inp("mr_number", "No. RM")}{inp("full_name", "Nama lengkap")}</div>
+    <div className="fgrid" style={{ marginTop: 10 }}>{inp("nickname", "Panggilan")}{inp("dob", "Tgl lahir (YYYY-MM-DD)")}</div>
+    <div className="fgrid" style={{ marginTop: 10 }}>{inp("gender", "Jenis kelamin")}{inp("blood_type", "Gol. darah")}</div>
+    <div className="fgrid" style={{ marginTop: 10 }}>{inp("birth_weight_kg", "BB lahir (kg)")}{inp("birth_length_cm", "PB lahir (cm)")}</div>
+    <div className="fgrid" style={{ marginTop: 10 }}>{inp("address", "Alamat")}{inp("insurance", "Asuransi")}</div>
+    <button className="btn btn-p btn-s" style={{ marginTop: 12 }} onClick={save}>Simpan perubahan</button>
+    {msg && <span style={{ marginLeft: 10, fontSize: 13 }}>{msg}</span>}</div>;
 }
 
 function Upload({ childId, onDone }: any) {

@@ -176,9 +176,22 @@ app.get("/api/patients/:id", need(...STAFF), (c) => {
   if (!ch) return err(c, "not_found", "pasien tidak ada", 404);
   return c.json({ ...ch, history: row("SELECT * FROM medical_history WHERE child_id=?", ch.id) || {}, documents: rows("SELECT * FROM documents WHERE child_id=?", ch.id) });
 });
+const CHILD_FIELDS = ["full_name", "nickname", "dob", "gender", "blood_type", "birth_weight_kg", "birth_length_cm", "address", "insurance", "mr_number"];
 app.put("/api/patients/:id", need("owner", "dokter", "admin"), bodyLimit, async (c) => {
   const b = await c.req.json(); const id = c.req.param("id");
-  run("UPDATE children SET full_name=COALESCE(?,full_name),nickname=COALESCE(?,nickname),address=COALESCE(?,address),insurance=COALESCE(?,insurance) WHERE id=?", b.full_name, b.nickname, b.address, b.insurance, id);
+  if (!row("SELECT id FROM children WHERE id=?", id)) return err(c, "not_found", "pasien tidak ada", 404);
+  if (b.mr_number && row("SELECT id FROM children WHERE mr_number=? AND id!=?", b.mr_number, id)) return err(c, "exists", "No. RM sudah dipakai", 409);
+  const sets = [], vals = []; // ponytail: allowlist-built SET — only provided keys update, no mass assignment
+  for (const f of CHILD_FIELDS) {
+    if (b[f] === undefined) continue;
+    let v = typeof b[f] === "string" ? b[f].trim() : b[f];
+    if ((f === "birth_weight_kg" || f === "birth_length_cm") && (v === "" || v === null)) v = null;
+    if ((f === "birth_weight_kg" || f === "birth_length_cm") && v !== null && Number.isNaN(Number(v))) return err(c, "invalid", f + " harus angka", 400);
+    sets.push(`${f}=?`); vals.push(v);
+  }
+  if (!sets.length) return err(c, "invalid", "tidak ada perubahan", 400);
+  vals.push(id);
+  run(`UPDATE children SET ${sets.join(",")} WHERE id=?`, ...vals);
   return c.json({ ok: true });
 });
 // upload: pdf/jpg/png ≤10MB, basename-sanitized

@@ -90,4 +90,16 @@ describe("security gate", () => {
     assert.equal((await B(ter.cookie, { email: "budi@example.com", child_id: kid.id })).status, 403);
     assert.equal((await B(par.cookie, { email: "budi@example.com", child_id: kid.id })).status, 403);
   });
+  it("12 patients PUT: staff edits, dup MR 409, bad number 400, terapis 403", async () => {
+    const dok = await login("dokter@asakita.demo"), adm = await login("admin@asakita.demo"), ter = await login("terapis@asakita.demo");
+    const P = (cookie, id, body) => app.request(`/api/patients/${id}`, { method: "PUT", headers: H(cookie), body: JSON.stringify(body) });
+    const a = await (await app.request("/api/patients", { method: "POST", headers: H(dok.cookie), body: JSON.stringify({ full_name: "Edit A", mr_number: "EA" + Date.now() }) })).json();
+    const b = await (await app.request("/api/patients", { method: "POST", headers: H(dok.cookie), body: JSON.stringify({ full_name: "Edit B", mr_number: "EB" + Date.now() }) })).json();
+    assert.equal(await (await P(dok.cookie, a.id, { nickname: "A-Chan", dob: "2023-02-02", blood_type: "AB" })).status, 200);
+    assert.equal((await (await app.request(`/api/patients/${a.id}`, { headers: H(dok.cookie) })).json()).nickname, "A-Chan");
+    assert.equal(await (await P(adm.cookie, a.id, { address: "Jl. Baru" })).status, 200);
+    assert.equal(await (await P(dok.cookie, a.id, { mr_number: (await (await app.request(`/api/patients/${b.id}`, { headers: H(dok.cookie) })).json()).mr_number })).status, 409);
+    assert.equal(await (await P(dok.cookie, a.id, { birth_weight_kg: "berat" })).status, 400);
+    assert.equal(await (await P(ter.cookie, a.id, { nickname: "x" })).status, 403);
+  });
 });
