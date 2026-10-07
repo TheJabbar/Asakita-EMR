@@ -75,9 +75,9 @@ export function importCsv(file) {
         }
       }
       const cid = uid("c");
-      run("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address,insurance) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+      run("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address,insurance,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
         cid, mr, b.child_full_name.trim(), b.child_nickname || "", b.dob || "", b.gender || "", b.blood_type || "",
-        num(b.birth_weight_kg, commaDec), num(b.birth_length_cm, commaDec), b.child_address || "", b.insurance || "Pribadi");
+        num(b.birth_weight_kg, commaDec), num(b.birth_length_cm, commaDec), b.child_address || "", b.insurance || "Pribadi", new Date().toISOString());
       if ((b.birth_history || "") + (b.allergies || "") + (b.notes || "") !== "")
         run("INSERT OR REPLACE INTO medical_history(child_id,birth_history,allergies,notes) VALUES(?,?,?,?)",
           cid, b.birth_history || "", b.allergies || "", b.notes || "");

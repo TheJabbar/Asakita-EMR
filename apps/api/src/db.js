@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS password_resets(email TEXT, token TEXT, at TEXT);
 export function migrate() {
   const db = getDb();
   db.exec(SCHEMA);
+  if (!db.prepare("PRAGMA table_info(children)").all().some((c) => c.name === "created_at"))
+    db.exec("ALTER TABLE children ADD COLUMN created_at TEXT"); // DBs created before this column; old rows stay NULL (excluded from monthly counts)
   // seed therapy types if empty
   const n = db.prepare("SELECT COUNT(*) c FROM therapy_types").get().c;
   if (!n) for (const t of ["Terapi Wicara", "Terapi Okupasi", "Sensori Integrasi"])

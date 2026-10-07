@@ -19,15 +19,16 @@ const pid2 = addUser("Budi", "budi@example.com", "parent");
 if (!db.prepare("SELECT id FROM parents WHERE user_id=?").get(pid)) {
   const p1 = uid("p"); db.prepare("INSERT INTO parents(id,user_id,phone) VALUES(?,?,?)").run(p1, pid, "+62 823-xxxx-xxxx");
   const p2 = uid("p"); db.prepare("INSERT INTO parents(id,user_id,phone) VALUES(?,?,?)").run(p2, pid2, "+62 800-0000");
+  const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString(); // stagger demo rows so the monthly chart has buckets
   const c1 = uid("c");
-  db.prepare("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address,insurance) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-    .run(c1, "0001248", "Ananda Putra", "Ananda", "2024-04-12", "Laki-laki", "O", 3.1, 49, "Sorowako, Luwu Timur", "Pribadi");
+  db.prepare("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address,insurance,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run(c1, "0001248", "Ananda Putra", "Ananda", "2024-04-12", "Laki-laki", "O", 3.1, 49, "Sorowako, Luwu Timur", "Pribadi", daysAgo(65));
   const c2 = uid("c");
-  db.prepare("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address,insurance) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-    .run(c2, "0001301", "Arslan Shah Malik", "Arslan", "2023-11-07", "Laki-laki", "A", 2.87, 46, "Makassar", "Pribadi");
+  db.prepare("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address,insurance,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run(c2, "0001301", "Arslan Shah Malik", "Arslan", "2023-11-07", "Laki-laki", "A", 2.87, 46, "Makassar", "Pribadi", daysAgo(35));
   const c3 = uid("c");
-  db.prepare("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,address) VALUES(?,?,?,?,?,?,?,?)")
-    .run(c3, "0001400", "Budi Jr", "Budi Jr", "2022-01-01", "Laki-laki", "B", "Makassar");
+  db.prepare("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,address,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+    .run(c3, "0001400", "Budi Jr", "Budi Jr", "2022-01-01", "Laki-laki", "B", "Makassar", daysAgo(5));
   db.prepare("INSERT INTO parent_children(parent_id,child_id,relation) VALUES(?,?,?)").run(p1, c2, "Ibu");
   db.prepare("INSERT INTO parent_children(parent_id,child_id,relation) VALUES(?,?,?)").run(p2, c3, "Ayah");
   db.prepare("INSERT OR REPLACE INTO medical_history(child_id,birth_history,allergies,notes) VALUES(?,?,?,?)")

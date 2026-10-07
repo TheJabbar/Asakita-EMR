@@ -59,4 +59,15 @@ describe("unit: EMR loop", () => {
     assert.equal(String.fromCharCode(...buf.slice(0, 4)), "%PDF");
     assert.ok((await (await app.request("/api/articles?category=MPASI")).json()).data.length > 0);
   });
+  it("dashboard: monthly counts move with new patients", async () => {
+    const s0 = await (await app.request("/api/dashboard/summary", { headers: H(staff) })).json();
+    assert.equal(s0.monthlyChart.length, 6);
+    assert.equal(s0.monthlyLabels.length, 6);
+    const list = (await (await app.request("/api/patients", { headers: H(staff) })).json()).data;
+    assert.equal(s0.monthlyChart.reduce((a, b) => a + b, 0), list.filter((p) => p.created_at).length);
+    await app.request("/api/patients", { method: "POST", headers: H(staff), body: JSON.stringify({ full_name: "Chart Kid", mr_number: "CK" + Date.now() }) });
+    const s1 = await (await app.request("/api/dashboard/summary", { headers: H(staff) })).json();
+    assert.equal(s1.monthlyNew, s0.monthlyNew + 1);
+    assert.equal(s1.monthlyChart.reduce((a, b) => a + b, 0), s0.monthlyChart.reduce((a, b) => a + b, 0) + 1);
+  });
 });

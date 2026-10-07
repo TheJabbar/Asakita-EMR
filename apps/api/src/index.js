@@ -154,14 +154,19 @@ app.get("/api/dashboard/summary", need(...STAFF), (c) => {
   const t = new Date().toISOString().slice(0, 10);
   const total = row("SELECT COUNT(*) c FROM children").c;
   const today = rows("SELECT a.*,ch.full_name FROM appointments a LEFT JOIN children ch ON ch.id=a.child_id WHERE date(starts_at)=date(?)", t + "T00:00");
+  const months = []; // ponytail: last 6 incl. current, computed from real created_at (NULL rows predate tracking → excluded)
+  { const d0 = new Date(t + "T00:00:00Z"); for (let i = 5; i >= 0; i--) months.push(new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() - i, 1)).toISOString().slice(0, 7)); }
+  const perMonth = Object.fromEntries(rows("SELECT substr(created_at,1,7) m, COUNT(*) c FROM children WHERE created_at>=? GROUP BY m", months[0] + "-01").map((r) => [r.m, r.c]));
+  const IDM = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
   return c.json({
-    totalPatients: total, monthlyNew: total, todayCount: today.length,
+    totalPatients: total, monthlyNew: perMonth[months[5]] ?? 0, todayCount: today.length,
     waitingCount: today.filter((a) => ["waiting", "scheduled"].includes(a.status)).length,
     therapyDone: row("SELECT COUNT(*) c FROM therapy_sessions WHERE date=?", t)?.c ?? 0,
     drafts: row("SELECT COUNT(*) c FROM visits WHERE status='draft'")?.c ?? 0,
     followUp: row("SELECT COUNT(*) c FROM appointments WHERE date(starts_at)>=date(?) AND status IN ('scheduled','confirmed','waiting')", t + "T00:00")?.c ?? 0,
     todayTimeline: today,
-    monthlyChart: [45, 58, 66, 75, 83, 92],
+    monthlyChart: months.map((m) => perMonth[m] ?? 0),
+    monthlyLabels: months.map((m) => IDM[Number(m.slice(5)) - 1]),
   });
 });
 app.get("/api/search", need(...STAFF), (c) => {
@@ -181,8 +186,8 @@ app.post("/api/patients", need("owner", "dokter", "admin"), bodyLimit, async (c)
   const b = await c.req.json();
   if (!b.full_name) return err(c, "invalid", "full_name wajib", 400);
   const id = uid("c");
-  run("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address,insurance) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-    id, b.mr_number || ("MR" + Date.now().toString().slice(-6)), b.full_name, b.nickname || "", b.dob || "", b.gender || "", b.blood_type || "", b.birth_weight_kg || null, b.birth_length_cm || null, b.address || "", b.insurance || "Pribadi");
+  run("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address,insurance,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+    id, b.mr_number || ("MR" + Date.now().toString().slice(-6)), b.full_name, b.nickname || "", b.dob || "", b.gender || "", b.blood_type || "", b.birth_weight_kg || null, b.birth_length_cm || null, b.address || "", b.insurance || "Pribadi", new Date().toISOString());
   if (b.birth_history || b.allergies) run("INSERT OR REPLACE INTO medical_history(child_id,birth_history,allergies,notes) VALUES(?,?,?,?)", id, b.birth_history || "", b.allergies || "", b.notes || "");
   audit(c.get("user").id, "create", "child", id);
   return c.json({ id }, 201);

@@ -289,7 +289,7 @@ function Dash() {
       <div className="card"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><h3 style={{ margin: 0 }}>Jadwal hari ini</h3><a href="#/schedule" className="btn btn-s no-print">Lihat jadwal →</a></div>
         <div className="tl">{tl.length ? tl.slice(0, 6).map((a: any) => <a className="it" key={a.id} href="#/schedule"><b>{(a.starts_at || "").slice(11, 16)}</b><div><b>{a.full_name || "—"}</b><br /><small style={{ color: "#6d7c74" }}>{a.type} • {a.room || ""}</small></div><span className={"pill " + pill(a.status)}>{a.status}</span></a>) : <div className="empty"><div className="big">📭</div>Belum ada jadwal hari ini.</div>}</div></div>
       <div className="card"><h3 style={{ marginTop: 0 }}>Pasien bulanan</h3>
-        <div className="bars">{["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"].map((m, i) => <div key={m} className={"bar" + (i === 5 ? " alt" : "")} style={{ height: Math.max(12, ((mc[i] || 0) / max) * 130) }} title={(mc[i] || 0) + " pasien"}><span>{m}</span></div>)}</div>
+        <div className="bars">{(d.monthlyLabels || ["", "", "", "", "", ""]).map((m, i) => <div key={i} className={"bar" + (i === 5 ? " alt" : "")} style={{ height: Math.max(12, ((mc[i] || 0) / max) * 130) }} title={(mc[i] || 0) + " pasien"}><span>{m}</span></div>)}</div>
       </div>
     </div>
     <div className="grid three" style={{ marginTop: 16 }}>
