@@ -149,8 +149,8 @@ function Welcome({ onOk }: any) {
       <p style={{ color: "#5f6d64", fontSize: 13, lineHeight: 1.55 }}>Pantau tumbuh kembang, jadwal terapi, edukasi ASI/MPASI & stimulasi harian — khusus data anak Anda.</p>
       <div className="illus">👩‍🍼</div>
       <div className="tabs" style={{ margin: "4px 0 8px" }}><button className={"tab" + (mode === "in" ? " on" : "")} onClick={() => setMode("in")}>Masuk</button><button className={"tab" + (mode === "up" ? " on" : "")} onClick={() => setMode("up")}>Daftar</button></div>
-      <label className="lbl">Email</label><input className="inp" value={e} onChange={(x) => setE(x.target.value.trim())} placeholder="alya@example.com" />
-      {mode === "up" && <><label className="lbl">Nama panggilan</label><input className="inp" value={n} onChange={(x) => setN(x.target.value)} placeholder="Bunda Alya" /></>}
+      <label className="lbl">Email</label><input className="inp" value={e} onChange={(x) => setE(x.target.value.trim())} placeholder="email@anda.id" />
+      {mode === "up" && <><label className="lbl">Nama panggilan</label><input className="inp" value={n} onChange={(x) => setN(x.target.value)} placeholder="Nama panggilan Anda" /></>}
       <label className="lbl">Password</label><input className="inp" type="password" value={p} onChange={(x) => setP(x.target.value)} onKeyDown={(x) => { if (x.key === "Enter") go(mode === "in" ? "/api/auth/login" : "/api/auth/register-parent", mode === "in" ? { email: e, password: p } : { email: e, password: p, name: n }); }} />
       {m && <p style={{ color: "#b42318", fontSize: 13 }}>{m}</p>}
       {mode === "in"
@@ -275,7 +275,7 @@ function Screen({ route }: any) {
   const DOMS: [string, string, string, string][] = [["motorik_kasar", "Motorik kasar", "🏃", "Berjalan, berlari, melompat"], ["motorik_halus", "Motorik halus", "✍️", "Menggenggam, menyusun, menjumput"], ["bahasa", "Bahasa", "💬", "Memahami & ekspresi kata"], ["sosial_emosional", "Sosial & emosional", "🤝", "Interaksi, bermain, mandiri"], ["kognitif", "Kognitif", "🧠", "Fokus & pemecahan masalah"]];
   return <div>
     <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Skrining perkembangan</h1><p>Checklist 5 domain versi kurasi ortu</p></div></div>
-    <div className="card" style={{ background: "#fff4de" }}><b>Perkembangan {ageID("") || "24–36 bln"} <span className="pill orange">Contoh terkurasi</span></b><p style={{ margin: "6px 0 0", color: "#5f6d64", fontSize: 12.5 }}>Detail klinis mentah hanya di EMR internal — ini ringkasan aman untuk ortu.</p></div>
+    <div className="card" style={{ background: "#fff4de" }}><b>Perkembangan {ageID("") || "24–36 bln"}</b><p style={{ margin: "6px 0 0", color: "#5f6d64", fontSize: 12.5 }}>Detail klinis mentah hanya di EMR internal — ini ringkasan aman untuk ortu.</p></div>
     {DOMS.map(([k, l, e, s]) => { const f = d.find((x) => x.domain === k); const ok = (f?.result || "").toLowerCase().includes("sesuai") || (f?.result || "").toLowerCase().includes("capai"); return <div className="scr" key={k}><div className="ico">{e}</div><div style={{ flex: 1 }}><h4 style={{ margin: 0, fontSize: 14 }}>{l}</h4><p style={{ fontSize: 12, color: "#6f7d75", margin: "3px 0 0" }}>{f?.note || s}</p></div><span className={"pill " + (ok ? "green" : "orange")}>{f?.result || "Dalam proses"}</span></div>; })}
     <button className="btn btn-p" onClick={() => (location.hash = "#/therapy/" + (id || kid))}>Lihat catatan terapi →</button>
   </div>;

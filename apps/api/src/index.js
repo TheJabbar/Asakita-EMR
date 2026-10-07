@@ -158,7 +158,9 @@ app.get("/api/dashboard/summary", need(...STAFF), (c) => {
     totalPatients: total, monthlyNew: total, todayCount: today.length,
     waitingCount: today.filter((a) => ["waiting", "scheduled"].includes(a.status)).length,
     therapyDone: row("SELECT COUNT(*) c FROM therapy_sessions WHERE date=?", t)?.c ?? 0,
-    followUp: 7, todayTimeline: today,
+    drafts: row("SELECT COUNT(*) c FROM visits WHERE status='draft'")?.c ?? 0,
+    followUp: row("SELECT COUNT(*) c FROM appointments WHERE date(starts_at)>=date(?) AND status IN ('scheduled','confirmed','waiting')", t + "T00:00")?.c ?? 0,
+    todayTimeline: today,
     monthlyChart: [45, 58, 66, 75, 83, 92],
   });
 });

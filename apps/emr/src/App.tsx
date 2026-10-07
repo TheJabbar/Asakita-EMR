@@ -180,7 +180,7 @@ export default function App() {
     <main className="main">
       <Topbar me={me} />
       <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy /> : R.startsWith("/progress") ? <Progress /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
-      <div className="footer">Asakita EMR Lite — {new Date().getFullYear()} • data tersimpan di server, bukan demo statis</div>
+      <div className="footer">Asakita EMR Lite — {new Date().getFullYear()}</div>
     </main>
   </div>;
 }
@@ -248,7 +248,7 @@ function Login({ onOk }: any) {
         <h1 className="serif">Selamat datang</h1><h2>di Asakita EMR Lite</h2>
         <p>Rekam medis & manajemen terapi klinik tumbuh kembang anak. Masuk untuk melanjutkan shift Anda.</p>
         <label className="lbl" htmlFor="em">Email / username</label>
-        <input id="em" className="inp" value={e} onChange={(x) => setE(x.target.value.trim())} placeholder="dokter@asakita.demo" autoComplete="username" />
+        <input id="em" className="inp" value={e} onChange={(x) => setE(x.target.value.trim())} placeholder="email@anda.id" autoComplete="username" />
         <label className="lbl" htmlFor="pw">Password</label>
         <div style={{ position: "relative" }}><input id="pw" className="inp" type={show ? "text" : "password"} value={p} onChange={(x) => setP(x.target.value)} onKeyDown={(x) => { if (x.key === "Enter") go({ email: e, password: p }, "/api/auth/login"); }} autoComplete="current-password" />
           <button className="linklike" style={{ position: "absolute", right: 14, top: 15, textDecoration: "none" }} onClick={() => setShow(!show)}>{show ? "🙈" : "👁"}</button></div>
@@ -290,12 +290,12 @@ function Dash() {
         <div className="tl">{tl.length ? tl.slice(0, 6).map((a: any) => <a className="it" key={a.id} href="#/schedule"><b>{(a.starts_at || "").slice(11, 16)}</b><div><b>{a.full_name || "—"}</b><br /><small style={{ color: "#6d7c74" }}>{a.type} • {a.room || ""}</small></div><span className={"pill " + pill(a.status)}>{a.status}</span></a>) : <div className="empty"><div className="big">📭</div>Belum ada jadwal hari ini.</div>}</div></div>
       <div className="card"><h3 style={{ marginTop: 0 }}>Pasien bulanan</h3>
         <div className="bars">{["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"].map((m, i) => <div key={m} className={"bar" + (i === 5 ? " alt" : "")} style={{ height: Math.max(12, ((mc[i] || 0) / max) * 130) }} title={(mc[i] || 0) + " pasien"}><span>{m}</span></div>)}</div>
-        <p className="sub" style={{ margin: "30px 0 0" }}>Tren kunjungan naik — kapasitas terapi perlu dijaga.</p></div>
+      </div>
     </div>
     <div className="grid three" style={{ marginTop: 16 }}>
-      <div className="card"><h3 style={{ marginTop: 0 }}>🔔 Notifikasi</h3><p style={{ fontSize: 13.5 }}>3 laporan terapi perlu diselesaikan hari ini.</p><p style={{ fontSize: 13.5 }}>{d.followUp} pasien perlu follow-up bulan ini.</p></div>
+      <div className="card"><h3 style={{ marginTop: 0 }}>🔔 Notifikasi</h3><p style={{ fontSize: 13.5 }}>{d.drafts ? d.drafts + " draf SOAP menunggu difinalkan." : "Semua SOAP sudah final."}</p><p style={{ fontSize: 13.5 }}>{d.followUp} jadwal perlu ditindaklanjuti.</p></div>
       <div className="card"><h3 style={{ marginTop: 0 }}>⚡ Aksi cepat</h3><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><a className="btn btn-s" href="#/patients">+ Tambah pasien</a><a className="btn btn-s" href="#/schedule">+ Buat jadwal</a></div></div>
-      <div className="card"><h3 style={{ marginTop: 0 }}>🛡 Status</h3><p><span className="pill ok">Live • tersambung API</span></p><p className="sub" style={{ margin: 0 }}>Audit trail & backup aktif di server.</p></div>
+      <div className="card"><h3 style={{ marginTop: 0 }}>🛡 Status</h3><p><span className="pill ok">Aktif • terhubung</span></p><p className="sub" style={{ margin: 0 }}>Data dimuat dari server.</p></div>
     </div>
   </div>;
 }
