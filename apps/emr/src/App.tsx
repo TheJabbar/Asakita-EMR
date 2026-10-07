@@ -403,7 +403,7 @@ function Sched() {
   useEffect(() => { load(); api.get("/api/patients").then((r) => setKids(r.data)).catch(() => {}); }, []);
   const shown = list.filter((a) => f === "semua" || a.status === f);
   return <div><h2 className="serif">Jadwal pasien</h2>
-    <div className="grid two">
+    <div className="grid">
       <div className="card"><h3 style={{ marginTop: 0 }}>Kalender & antrean</h3>
         <div className="chips" style={{ marginBottom: 12 }}>{["semua", "scheduled", "confirmed", "waiting", "in_progress", "done", "cancelled"].map((s) => <button key={s} className={"tab" + (f === s ? " on" : "")} onClick={() => setF(s)}>{s}</button>)}</div>
         <table className="tbl"><thead><tr><th>Waktu</th><th>Pasien</th><th>Layanan</th><th>Status</th><th /></tr></thead><tbody>{shown.slice(0, 30).map((a: any) => <tr key={a.id}><td style={{ whiteSpace: "nowrap" }}>{(a.starts_at || "").replace("T", " ").slice(0, 16)}</td><td><b>{a.full_name}</b><br /><small style={{ color: "#6d7c74" }}>{a.room}</small></td><td>{a.type}</td><td><span className={"pill " + pill(a.status)}>{a.status}</span></td><td style={{ whiteSpace: "nowrap" }}>{(NEXT[a.status] || []).slice(0, 2).map((n) => <button key={n} className="btn btn-s" onClick={() => api.patch(`/api/appointments/${a.id}/status`, { status: n }).then(load).catch((e) => alert("Transisi ditolak (" + e.message + ")"))}>{n === "done" ? "Selesai ✓" : n}</button>)}</td></tr>)}</tbody></table>
