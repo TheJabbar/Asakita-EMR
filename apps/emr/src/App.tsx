@@ -180,7 +180,7 @@ export default function App() {
     <main className="main">
       <Topbar me={me} />
       <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy /> : R.startsWith("/progress") ? <Progress /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
-      <div className="footer">Asakita EMR Lite — {new Date().getFullYear()}</div>
+      <div className="footer">Asakita EMR — {new Date().getFullYear()}</div>
     </main>
   </div>;
 }
@@ -234,7 +234,7 @@ function Login({ onOk }: any) {
       <div className="lg-mark">♡</div>
       <h1 className="lg-title serif">ASAKITA</h1>
       <p className="lg-sub">Child Development & Therapy Center</p>
-      <div className="lg-tag">Tumbuh bersama — <b>langkah kecil</b> untuk masa depan yang besar 💛<br /><small style={{ opacity: .75 }}>EMR Lite: pasien • jadwal • SOAP • terapi • laporan</small></div>
+      <div className="lg-tag">Tumbuh bersama — <b>langkah kecil</b> untuk masa depan yang besar 💛<br /><small style={{ opacity: .75 }}>EMR: pasien • jadwal • SOAP • terapi • laporan</small></div>
       <div className="lg-feats">
         <div><i>♡</i><div><b>Terintegrasi</b><p>Pasien, jadwal, SOAP, terapi & laporan dalam satu alur, bukan menu terpisah.</p></div></div>
         <div><i>◉</i><div><b>Kolaborasi sesuai peran</b><p>Dokter, terapis, admin & owner — hak akses mengikuti peran masing-masing.</p></div></div>
@@ -245,7 +245,7 @@ function Login({ onOk }: any) {
     <main className="lg-hero">
       <div className="lg-date">{new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
       <section className="lg-card">
-        <h1 className="serif">Selamat datang</h1><h2>di Asakita EMR Lite</h2>
+        <h1 className="serif">Selamat datang</h1><h2>di Asakita EMR</h2>
         <p>Rekam medis & manajemen terapi klinik tumbuh kembang anak. Masuk untuk melanjutkan shift Anda.</p>
         <label className="lbl" htmlFor="em">Email / username</label>
         <input id="em" className="inp" value={e} onChange={(x) => setE(x.target.value.trim())} placeholder="email@anda.id" autoComplete="username" />
