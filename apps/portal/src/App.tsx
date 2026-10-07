@@ -274,7 +274,7 @@ function Screen({ route }: any) {
   }, [id]);
   const DOMS: [string, string, string, string][] = [["motorik_kasar", "Motorik kasar", "🏃", "Berjalan, berlari, melompat"], ["motorik_halus", "Motorik halus", "✍️", "Menggenggam, menyusun, menjumput"], ["bahasa", "Bahasa", "💬", "Memahami & ekspresi kata"], ["sosial_emosional", "Sosial & emosional", "🤝", "Interaksi, bermain, mandiri"], ["kognitif", "Kognitif", "🧠", "Fokus & pemecahan masalah"]];
   return <div>
-    <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Skrining perkembangan</h1><p>Checklist 5 domain versi kurasi ortu</p></div></div>
+    <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Skrining perkembangan</h1><p>Checklist 5 domain</p></div></div>
     <div className="card" style={{ background: "#fff4de" }}><b>Perkembangan {ageID("") || "24–36 bln"}</b><p style={{ margin: "6px 0 0", color: "#5f6d64", fontSize: 12.5 }}>Detail klinis mentah hanya di EMR internal — ini ringkasan aman untuk ortu.</p></div>
     {DOMS.map(([k, l, e, s]) => { const f = d.find((x) => x.domain === k); const ok = (f?.result || "").toLowerCase().includes("sesuai") || (f?.result || "").toLowerCase().includes("capai"); return <div className="scr" key={k}><div className="ico">{e}</div><div style={{ flex: 1 }}><h4 style={{ margin: 0, fontSize: 14 }}>{l}</h4><p style={{ fontSize: 12, color: "#6f7d75", margin: "3px 0 0" }}>{f?.note || s}</p></div><span className={"pill " + (ok ? "green" : "orange")}>{f?.result || "Dalam proses"}</span></div>; })}
     <button className="btn btn-p" onClick={() => (location.hash = "#/therapy/" + (id || kid))}>Lihat catatan terapi →</button>
@@ -345,7 +345,7 @@ function Rep() {
     setMsg("Tautan email dicatat — cek inbox Anda.");
   };
   return <div>
-    <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Laporan perkembangan</h1><p>Resume kurasi dokter untuk ortu</p></div></div>
+    <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Laporan perkembangan</h1><p>Resume dokter</p></div></div>
     <div className="cover"><div className="cover-logo">♡</div><h2 style={{ color: "#275844", margin: "4px 0" }} className="serif">ASAKITA</h2><p style={{ margin: 0, color: "#6f7d75", fontSize: 12 }}>Child Health Center</p><hr style={{ border: 0, borderTop: "1px solid #eee0cb", margin: "16px 0" }} /><h3>Laporan perkembangan anak</h3><div className="child-photo" style={{ margin: "10px auto" }}>👶</div><div className="mini-grid"><div>Pertumbuhan</div><div>Perkembangan</div><div>Terapi</div><div>Rekomendasi</div></div></div>
     {list.length ? list.slice(0, 3).map((r: any) => <div className="card" key={r.id}><b>{dID(r.created_at)}</b> • {r.period_start}–{r.period_end}<p style={{ fontSize: 13, color: "#4c5a52" }}>{r.summary}</p><div style={{ display: "flex", gap: 8 }}><button className="btn btn-soft btn-a" onClick={() => dl(r.id)}>Download PDF</button><button className="btn btn-o btn-a" onClick={() => mail(r.id)}>Kirim ke email</button></div></div>)
       : <div className="note">Laporan terbit per periode evaluasi. Minta ke front office bila butuh PDF untuk sekolah — versi portal selalu ringkasan kurasi, bukan rekam mentah.</div>}
