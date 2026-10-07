@@ -273,7 +273,7 @@ function Dash() {
     { l: "Total pasien", v: d.totalPatients, b: "+" + d.monthlyNew + " bulan ini", e: "◉", c: "" },
     { l: "Jadwal hari ini", v: d.todayCount, b: d.waitingCount + " menunggu", e: "▦", c: "warn" },
     { l: "Sesi terapi", v: d.therapyDone, b: "selesai hari ini", e: "⬢", c: "ok" },
-    { l: "Perlu follow-up", v: d.followUp, b: "prioritas", e: "✦", c: "bad" },
+    { l: "Perlu follow-up", v: d.followUp, b: "prioritas", e: "✦", c: "bad", href: "#/schedule" },
   ] : [], [d]);
   if (!d) return <div>
     <h2 className="serif">Dashboard</h2><p className="sub">Ringkasan operasional hari ini.</p>
@@ -284,7 +284,10 @@ function Dash() {
   const max = Math.max(...mc, 1);
   return <div>
     <h2 className="serif">Dashboard</h2><p className="sub">Ringkasan operasional hari ini.</p>
-    <div className="grid cards">{stats.map((s) => <div className="card hover stat" key={s.l}><div><small>{s.l}</small><div className="num">{s.v}</div><span className={"pill " + s.c}>{s.b}</span></div><div className="emo">{s.e}</div></div>)}</div>
+    <div className="grid cards">{stats.map((s: any) => {
+      const inner = <><div><small>{s.l}</small><div className="num">{s.v}</div><span className={"pill " + s.c}>{s.b}</span></div><div className="emo">{s.e}</div></>;
+      return s.href ? <a key={s.l} href={s.href} className="card hover stat" style={{ textDecoration: "none", color: "inherit" }}>{inner}</a> : <div key={s.l} className="card hover stat">{inner}</div>;
+    })}</div>
     <div className="grid two" style={{ marginTop: 16 }}>
       <div className="card"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><h3 style={{ margin: 0 }}>Jadwal hari ini</h3><a href="#/schedule" className="btn btn-s no-print">Lihat jadwal →</a></div>
         <div className="tl">{tl.length ? tl.slice(0, 6).map((a: any) => <a className="it" key={a.id} href="#/schedule"><b>{(a.starts_at || "").slice(11, 16)}</b><div><b>{a.full_name || "—"}</b><br /><small style={{ color: "#6d7c74" }}>{a.type} • {a.room || ""}</small></div><span className={"pill " + pill(a.status)}>{a.status}</span></a>) : <div className="empty"><div className="big">📭</div>Belum ada jadwal hari ini.</div>}</div></div>
