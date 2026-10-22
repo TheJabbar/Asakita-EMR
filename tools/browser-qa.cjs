@@ -286,6 +286,22 @@ async function portalSuite(browser) {
   const paths = await page.locator("svg.chart-svg path").count();
   check("PORTAL: growth chart", svg === 1, svg + " svg");
   check("PORTAL: reference bands", paths >= 2, paths + " paths");
+  // the growth page links across to the development checklist
+  const toChecklist = page.locator('button:has-text("Lihat checklist perkembangan")');
+  check("PORTAL: growth page links to the checklist", (await toChecklist.count()) === 1);
+  await toChecklist.first().click();
+  await page.waitForTimeout(2000);
+  const denverReached = await page.locator(".card:has-text('Checklist Denver')").count();
+  check("PORTAL: checklist reachable from the growth page", denverReached >= 1);
+  // nav label fits without overflowing
+  const navFit = await page.evaluate(() => {
+    const a = [...document.querySelectorAll(".nav a")].find((x) => x.textContent.includes("Perkembangan"));
+    if (!a) return { found: false };
+    return { found: true, overflow: a.scrollWidth > a.clientWidth + 1, text: a.textContent.trim() };
+  });
+  check("PORTAL: nav label 'Perkembangan' fits", navFit.found && !navFit.overflow, JSON.stringify(navFit));
+  await page.goto(BASE + "/portal/#/growth");
+  await page.waitForTimeout(2000);
   await page.click('.tab:has-text("Tinggi badan")');
   await page.waitForTimeout(1500);
   check("PORTAL: indicator tab switch", (await page.locator("svg.chart-svg").count()) === 1);

@@ -128,7 +128,7 @@ function useHash(): string {
 }
 function Nav({ r }: any) {
   const it = (p: string, e: string, l: string) => <a href={"#" + p} className={r === p || (p === "/" && (r === "" || r === "/")) ? "on" : ""}><span>{e}</span>{l}</a>;
-  return <nav className="nav">{it("/", "🏠", "Beranda")}{it("/appointments", "📅", "Jadwal")}{it("/screening", "🧩", "Perkemb.")}{it("/education", "📚", "Edukasi")}{it("/account", "👤", "Profil")}</nav>;
+  return <nav className="nav">{it("/", "🏠", "Beranda")}{it("/appointments", "📅", "Jadwal")}{it("/screening", "🧩", "Perkembangan")}{it("/education", "📚", "Edukasi")}{it("/account", "👤", "Profil")}</nav>;
 }
 
 export default function App() {
@@ -308,6 +308,7 @@ function Growth({ route }: any) {
       <div className="note" style={{ marginTop: 10 }}>Acuan kurva mengikuti standar WHO (0–5 tahun) atau CDC (5–19 tahun). Tanggal ditulis <b>DD-MM-YYYY</b>. Bawa buku KIA saat kontrol.</div>
     </div>
     <button className="btn btn-soft" onClick={() => (location.hash = "#/reports")}>Lihat laporan pertumbuhan →</button>
+    <button className="btn btn-o" style={{ marginTop: 8 }} onClick={() => (location.hash = "#/screening")}>Lihat checklist perkembangan →</button>
   </div>;
 }
 
@@ -369,7 +370,7 @@ function Screen({ route }: any) {
   }, [id]);
   const DOMS: [string, string, string, string][] = [["motorik_kasar", "Motorik kasar", "🏃", "Berjalan, berlari, melompat"], ["motorik_halus", "Motorik halus", "✍️", "Menggenggam, menyusun, menjumput"], ["bahasa", "Bahasa", "💬", "Memahami & ekspresi kata"], ["sosial_emosional", "Sosial & emosional", "🤝", "Interaksi, bermain, mandiri"], ["kognitif", "Kognitif", "🧠", "Fokus & pemecahan masalah"]];
   return <div>
-    <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Skrining perkembangan</h1><p>Checklist 5 domain</p></div></div>
+    <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Perkembangan anak</h1><p>Skrining 5 domain, checklist Denver, milestone, program terapi</p></div></div>
     <div className="card" style={{ background: "#fff4de" }}><b>Perkembangan {ageID("") || "24–36 bln"}</b><p style={{ margin: "6px 0 0", color: "#5f6d64", fontSize: 12.5 }}>Detail klinis mentah hanya di EMR internal — ini ringkasan aman untuk ortu.</p></div>
     {DOMS.map(([k, l, e, s]) => { const f = d.find((x) => x.domain === k); const ok = (f?.result || "").toLowerCase().includes("sesuai") || (f?.result || "").toLowerCase().includes("capai"); return <div className="scr" key={k}><div className="ico">{e}</div><div style={{ flex: 1 }}><h4 style={{ margin: 0, fontSize: 14 }}>{l}</h4><p style={{ fontSize: 12, color: "#6f7d75", margin: "3px 0 0" }}>{f?.note || s}</p></div><span className={"pill " + (ok ? "green" : "orange")}>{f?.result || "Dalam proses"}</span></div>; })}
     {dnv && <div className="card"><h4 style={{ margin: "0 0 4px" }}>Checklist Denver</h4>
