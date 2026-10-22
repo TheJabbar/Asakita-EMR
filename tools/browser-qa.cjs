@@ -135,6 +135,10 @@ async function emrSuite(browser) {
   await page.click('.seg-b:has-text("Tinggi badan")');
   await page.waitForTimeout(1200);
   check("EMR: indicator switch (height)", (await page.locator("svg.growth-svg").count()) === 1);
+  await page.click('.seg-b:has-text("Lingkar kepala")');
+  await page.waitForTimeout(1200);
+  const headPts = await page.locator("svg.growth-svg circle").count();
+  check("EMR: head circumference has data", headPts > 0, headPts + " points");
   await page.selectOption(".toolbar select >> nth=1", "WHO").catch(() => {});
   await page.waitForTimeout(1200);
   check("EMR: standard override select", true);
@@ -227,6 +231,10 @@ async function portalSuite(browser) {
   await page.click('.tab:has-text("Tinggi badan")');
   await page.waitForTimeout(1500);
   check("PORTAL: indicator tab switch", (await page.locator("svg.chart-svg").count()) === 1);
+  await page.click('.tab:has-text("Lingkar kepala")');
+  await page.waitForTimeout(1500);
+  const headPts = await page.locator("svg.chart-svg circle").count();
+  check("PORTAL: head circumference has data", headPts > 0, headPts + " points");
 
   // screening + denver summary
   await page.goto(BASE + "/portal/#/screening");

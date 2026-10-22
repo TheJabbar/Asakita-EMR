@@ -58,11 +58,33 @@ if (!db.prepare("SELECT id FROM parents WHERE user_id=?").get(pid)) {
     db.prepare("INSERT OR IGNORE INTO articles(id,slug,title,category,author,body_md,age_tag,published_at) VALUES(?,?,?,?,?,?,?,?)")
       .run(uid("ar"), slug, title, cat, au, body, age, t);
   const g = (child, d, w, h2) => db.prepare("INSERT INTO growth_records(id,child_id,date,weight_kg,height_cm,recorded_by) VALUES(?,?,?,?,?,?)").run(uid("g"), child, d, w, h2, dokter);
-  g(c2, "2026-07-01", 12.4, 88); g(c2, "2026-09-01", 13.2, 90);
   for (const [k, l, s] of [["kontak_mata", "Kontak mata", "in_progress"], ["instruksi_1", "Instruksi 1 langkah", "achieved"], ["kosakata", "Kosakata ekspresif", "in_progress"]])
     db.prepare("INSERT OR REPLACE INTO milestones(child_id,key,label,status,updated_at) VALUES(?,?,?,?,?)").run(c2, k, l, s, t);
   console.log("seed ok");
 }
+
+// ponytail: demo growth measurements (BB / TB / LK) for every demo child — idempotent, so an
+// already-seeded DB (production) also gets them. Values follow the WHO boy median ± ~0.3 SD.
+// [tanggal, berat kg, tinggi cm, lingkar kepala cm]
+const DEMO_GROWTH = {
+  "0001248": [["2025-04-12", 9.8, 76.0, 46.5], ["2025-10-12", 11.2, 83.0, 47.5], ["2026-04-12", 12.8, 88.0, 48.1], ["2026-10-01", 13.9, 92.0, 48.4]],
+  "0001301": [["2024-11-07", 9.4, 75.0, 46.0], ["2025-05-07", 10.9, 82.0, 47.2], ["2025-11-07", 12.0, 87.0, 47.8], ["2026-07-01", 12.8, 90.5, 48.1], ["2026-09-01", 13.5, 92.0, 48.4]],
+  "0001400": [["2023-01-01", 9.9, 77.0, 46.8], ["2024-01-01", 12.5, 88.0, 48.0], ["2025-01-01", 14.6, 96.0, 49.0], ["2026-01-01", 16.4, 102.0, 49.6], ["2026-10-01", 17.6, 106.0, 50.0]],
+};
+for (const [mr, rows] of Object.entries(DEMO_GROWTH)) {
+  const kid = db.prepare("SELECT id FROM children WHERE mr_number=?").get(mr);
+  if (!kid) continue;
+  for (const [date, w, h2, hc] of rows) {
+    const existing = db.prepare("SELECT id FROM growth_records WHERE child_id=? AND date=?").get(kid.id, date);
+    if (existing) { // keep the id, refresh the values (older rows had no head circumference)
+      db.prepare("UPDATE growth_records SET weight_kg=?, height_cm=?, head_cm=? WHERE id=?").run(w, h2, hc, existing.id);
+      continue;
+    }
+    db.prepare("INSERT INTO growth_records(id,child_id,date,weight_kg,height_cm,head_cm,recorded_by) VALUES(?,?,?,?,?,?,?)")
+      .run(uid("g"), kid.id, date, w, h2, hc, dokter);
+  }
+}
+console.log("seed growth ok");
 
 // ponytail: demo rows for the newer features run on every boot and are idempotent —
 // an already-seeded DB (e.g. production) still gets them after a deploy.
