@@ -69,7 +69,22 @@ describe("unit: Denver checklist", () => {
     assert.equal(r.status, 200);
     const body = await r.json();
     assert.ok(body.domains.length === 4);
-    assert.ok(!("items" in body)); // curated: no raw item list
+    assert.ok(body.domains.every((d) => Array.isArray(d.items))); // checklist items for the parent's age band
+    assert.ok(!("note" in body)); // curated: no clinician notes
+  });
+  it("portal gets milestones + therapy programs of its own child", async () => {
+    const kids = await (await app.request("/api/portal/children", { headers: H(parent) })).json();
+    const mine = kids.data[0];
+    await app.request("/api/milestones", { method: "PUT", headers: H(staff), body: JSON.stringify({ child_id: mine.id, key: "bicara", label: "Kosakata 2 kata", status: "achieved" }) });
+    const typeId = (await (await app.request("/api/therapy-types", { headers: H(staff) })).json()).data[0].id;
+    await app.request("/api/therapy-programs", { method: "PUT", headers: H(staff), body: JSON.stringify({ child_id: mine.id, type_id: typeId, frequency: "2x/minggu", status: "aktif" }) });
+    const ms = await (await app.request(`/api/portal/milestones?childId=${mine.id}`, { headers: H(parent) })).json();
+    assert.ok(ms.data.some((m) => m.label === "Kosakata 2 kata" && m.status === "achieved"));
+    const pg = await (await app.request(`/api/portal/programs?childId=${mine.id}`, { headers: H(parent) })).json();
+    assert.ok(pg.data.length >= 1 && pg.data[0].frequency === "2x/minggu" && typeof pg.data[0].progress === "number");
+    // a parent may not read another child's data
+    assert.equal((await app.request(`/api/portal/milestones?childId=${childId}`, { headers: H(parent) })).status, 404);
+    assert.equal((await app.request(`/api/portal/programs?childId=${childId}`, { headers: H(parent) })).status, 404);
   });
 });
 

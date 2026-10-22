@@ -1,6 +1,6 @@
 // ponytail: one-file EMR — hash routes, plain fetch, no router lib; CSS-injected design system (no new deps)
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { growthGeometry, formatIDR, BAND_LABEL } from "@asakita/shared";
+import { growthGeometry, formatIDR, formatDMY, BAND_LABEL } from "@asakita/shared";
 // ponytail: same-origin default (Fly serves API+UI on one host); dev uses vite proxy below
 const API = (import.meta as any).env?.VITE_API_URL || "";
 // ponytail: tag every request with the app so the API picks the right session cookie (EMR + portal share one origin in prod)
@@ -604,7 +604,7 @@ function GrowthChart({ curve, w = 560, h = 300 }: any) {
       })}
       {geo.child && <path d={geo.child} fill="none" stroke="#c9952f" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />}
       {geo.dots.map((p: any, i: number) => <circle key={p.id || i} cx={p.cx} cy={p.cy} r={5.5} fill={DOT_FILL[p.band] || "#2c5545"} stroke="#fff" strokeWidth={2}>
-        <title>{p.date} • {p.value} {curve.unit} • z {p.z} • persentil {p.percentile}</title>
+        <title>{formatDMY(p.date)} • {p.value} {curve.unit} • z {p.z} • persentil {p.percentile}</title>
       </circle>)}
       {geo.xTicks.map((t: any, i: number) => <text key={i} x={t.x} y={geo.h - 8} fontSize={10} textAnchor="middle" fill="#6d7c74">{t.label}</text>)}
       {geo.yTicks.map((t: any, i: number) => <text key={i} x={6} y={t.y + 3} fontSize={10} fill="#6d7c74">{t.label}</text>)}
@@ -639,7 +639,7 @@ function Progress({ initial = "kurva" }: any) {
     api.post("/api/growth", body).then(() => { setAdding(false); setGf({ ...gf, weight_kg: "", height_cm: "", head_cm: "" }); }).catch((e) => alert("Gagal (" + e.message + ")"));
   };
   const pts = curve?.points || [];
-  return <div><h2 className="serif">Tumbuh kembang</h2><p className="sub">Kurva pertumbuhan (acuan WHO &amp; CDC), checklist Denver, milestone, dan program terapi.</p>
+  return <div><h2 className="serif">Tumbuh kembang</h2><p className="sub">Kurva pertumbuhan (acuan WHO &amp; CDC), checklist Denver, milestone, dan program terapi. <b>Format tanggal: DD-MM-YYYY</b> (contoh: 12-04-2024).</p>
     <div className="tabs" role="tablist">
       <button role="tab" className={"tab" + (view === "kurva" ? " on" : "")} onClick={() => setView("kurva")}>Kurva &amp; milestone</button>
       <button role="tab" className={"tab" + (view === "denver" ? " on" : "")} onClick={() => setView("denver")}>Checklist Denver</button>
@@ -654,7 +654,7 @@ function Progress({ initial = "kurva" }: any) {
       <button className="btn btn-s" onClick={() => setAdding(!adding)}>+ Pengukuran</button>
     </div>
     {adding && <div className="card" style={{ marginBottom: 16 }}>
-      <div className="fgrid"><div><label className="lbl">Tanggal</label><input className="inp" type="date" value={gf.date} onChange={(e) => setGf({ ...gf, date: e.target.value })} /></div>
+      <div className="fgrid"><div><label className="lbl">Tanggal</label><input className="inp" type="date" value={gf.date} onChange={(e) => setGf({ ...gf, date: e.target.value })} /><small className="sub" style={{ margin: "4px 0 0" }}>DD-MM-YYYY</small></div>
         <div><label className="lbl">Berat (kg)</label><input className="inp" type="number" step="0.1" value={gf.weight_kg} onChange={(e) => setGf({ ...gf, weight_kg: e.target.value })} /></div></div>
       <div className="fgrid" style={{ marginTop: 10 }}><div><label className="lbl">Tinggi (cm)</label><input className="inp" type="number" step="0.1" value={gf.height_cm} onChange={(e) => setGf({ ...gf, height_cm: e.target.value })} /></div>
         <div><label className="lbl">Lingkar kepala (cm)</label><input className="inp" type="number" step="0.1" value={gf.head_cm} onChange={(e) => setGf({ ...gf, head_cm: e.target.value })} /></div></div>
@@ -664,7 +664,7 @@ function Progress({ initial = "kurva" }: any) {
       <div className="card"><h3 style={{ marginTop: 0 }}>{curve?.label || "Kurva"}{curve?.latest ? <span className={"pill " + (curve.latest.band === "normal" ? "ok" : curve.latest.band === "unknown" ? "" : "warn")}> {curve.latest.value} {curve.unit} • persentil {curve.latest.percentile ?? "—"}</span> : null}</h3>
         <GrowthChart curve={curve} />
         {pts.length > 0 && <table className="tbl" style={{ marginTop: 10 }}><thead><tr><th>Tanggal</th><th>Usia</th><th>Nilai</th><th>z</th><th>Status</th></tr></thead>
-          <tbody>{[...pts].reverse().map((p: any) => <tr key={p.id}><td>{p.date}</td><td>{p.ageMonths} bl</td><td><b>{p.value} {curve.unit}</b></td><td>{p.z ?? "—"}</td><td><span className={"pill " + (p.band === "normal" ? "ok" : p.band === "unknown" ? "" : "warn")}>{BAND_LABEL[p.band] || p.band}</span></td></tr>)}</tbody></table>}
+          <tbody>{[...pts].reverse().map((p: any) => <tr key={p.id}><td>{formatDMY(p.date)}</td><td>{p.ageMonths} bl</td><td><b>{p.value} {curve.unit}</b></td><td>{p.z ?? "—"}</td><td><span className={"pill " + (p.band === "normal" ? "ok" : p.band === "unknown" ? "" : "warn")}>{BAND_LABEL[p.band] || p.band}</span></td></tr>)}</tbody></table>}
       </div>
       <div>
         <div className="card"><h3 style={{ marginTop: 0 }}>Milestone</h3>

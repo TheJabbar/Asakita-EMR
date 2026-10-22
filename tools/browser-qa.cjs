@@ -86,6 +86,9 @@ async function emrSuite(browser) {
   check("EMR: billing tab + receipt card", receipt);
   if (!SAFE) {
     const QA = "QA item " + Date.now();
+    const childId = (page.url().split("/patients/")[1] || "").split(/[?#]/)[0];
+    const billIds = async () => page.evaluate(async (id) => (await (await fetch(`/api/billing?childId=${id}`, { credentials: "include" })).json()).data.map((i) => i.id), childId);
+    const idsBefore = await billIds();
     const before = await page.locator("table.tbl tbody tr").count();
     await page.click('button:has-text("Tagih sesi terapi")');
     await page.waitForTimeout(1200);
@@ -100,14 +103,18 @@ async function emrSuite(browser) {
     if (await paid.count()) { await paid.first().click(); await page.waitForTimeout(900); }
     const isLunas = await page.locator(".card table.tbl tbody tr:has-text('QA item') .pill:has-text('Lunas')").count();
     check("EMR: mark item paid", isLunas >= 1, isLunas + " paid");
-    // clean up: remove the QA rows (billing items are deletable)
+    // clean up: remove every row this run created (the manual QA row + rows billed from sessions)
     page.once("dialog", (d) => d.accept());
-    while (await page.locator(".card table.tbl tbody tr:has-text('QA item') button[title='Hapus']").count()) {
-      await page.locator(".card table.tbl tbody tr:has-text('QA item') button[title='Hapus']").first().click();
-      await page.waitForTimeout(700);
+    const created = (await billIds()).filter((id) => !idsBefore.includes(id));
+    for (const id of created) {
+      await page.evaluate(async (id) => fetch(`/api/billing/items/${id}`, { method: "DELETE", credentials: "include" }), id);
     }
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1500);
+    await page.click('.tabs button:has-text("Billing")');
+    await page.waitForTimeout(800);
     const left = await page.locator(".card table.tbl tbody tr:has-text('QA item')").count();
-    check("EMR: QA billing item cleaned up", left === 0, left + " left");
+    check("EMR: QA billing rows cleaned up", left === 0, left + " QA rows left");
     await page.click('button:has-text("Harga layanan")');
     await page.waitForTimeout(300);
     const prices = await page.locator("input[type=number]").count();
@@ -179,6 +186,11 @@ async function emrSuite(browser) {
   check("EMR: home program (resep) created", progItems >= 1, progItems + " items");
   const dayCount = await page.locator(".card:has-text('QA latihan 1') .pill:has-text('hari')").first().innerText().catch(() => "");
   check("EMR: program tracking shows days", /hari/.test(dayCount), dayCount);
+  // clean up the QA session (and its program) again
+  const tChildId = await page.locator(".card select >> nth=0").inputValue().catch(() => "");
+  const qaSessions = tChildId ? await page.evaluate(async (id) => (await (await fetch(`/api/therapy-sessions?childId=${id}`, { credentials: "include" })).json()).data.filter((s) => /QA/i.test(s.target || "")).map((s) => s.id), tChildId) : [];
+  for (const sid of qaSessions) await page.evaluate(async (id) => fetch(`/api/therapy-sessions/${id}`, { method: "DELETE", credentials: "include" }), sid);
+  check("EMR: QA session cleaned up", true, qaSessions.length + " removed");
 
   // --- schedule ---
   await page.goto(BASE + "/emr/#/schedule");
@@ -239,11 +251,17 @@ async function portalSuite(browser) {
 
   // screening + denver summary
   await page.goto(BASE + "/portal/#/screening");
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(2000);
   const denverCard = await page.locator(".card:has-text('Checklist Denver')").count();
   check("PORTAL: denver summary card", denverCard >= 1);
   const domBars = await page.locator(".card:has-text('Checklist Denver') .bar").count();
   check("PORTAL: denver domain bars", domBars === 4, domBars + " bars");
+  const denverItems = await page.locator(".card:has-text('Checklist Denver') .pill:has-text('Lulus'), .card:has-text('Checklist Denver') .pill:has-text('Belum')").count();
+  check("PORTAL: denver checklist items visible", denverItems > 0, denverItems + " items");
+  const msCard = await page.locator(".card:has-text('Milestone perkembangan')").count();
+  check("PORTAL: milestones section", msCard >= 1);
+  const progCard = await page.locator(".card:has-text('Program terapi')").count();
+  check("PORTAL: therapy programs section", progCard >= 1);
 
   // resep tracking
   await page.goto(BASE + "/portal/#/resep");

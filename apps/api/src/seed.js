@@ -103,8 +103,24 @@ if (demoKid) {
   for (const [k, s] of [["b5-motor-1", "pass"], ["b5-language-1", "pass"], ["b5-social-2", "not_yet"]])
     db.prepare("INSERT OR IGNORE INTO denver_results(child_id,item_key,status,note,checked_at,checked_by) VALUES(?,?,?,?,?,?)")
       .run(kid, k, s, "", t, null);
-  if (!db.prepare("SELECT id FROM billing_items WHERE child_id=? AND description=?").get(kid, "Terapi Wicara"))
-    db.prepare("INSERT INTO billing_items(id,child_id,date,description,qty,unit_price,session_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
-      .run(uid("bi"), kid, t, "Terapi Wicara", 2, 120000, null, "unpaid", t);
+  // demo: program terapi + sesi (2 sudah tertagih, 1 belum → tombol "Tagih sesi terapi" masih ada yang bisa ditagih)
+  const wicara = db.prepare("SELECT id FROM therapy_types WHERE name='Terapi Wicara'").get();
+  if (wicara) {
+    db.prepare("INSERT OR REPLACE INTO therapy_programs(child_id,type_id,frequency,status) VALUES(?,?,?,?)")
+      .run(kid, wicara.id, "2x/minggu", "aktif");
+    const sessions = [];
+    for (const [d, target, res] of [["2026-06-18", "Imitasi suara & kontak mata", "3/5 instruksi direspon"], ["2026-08-06", "Kosakata 2 kata", "4/5"], ["2026-09-24", "Instruksi 2 langkah", "3/5"]]) {
+      const ex = db.prepare("SELECT id FROM therapy_sessions WHERE child_id=? AND date=?").get(kid, d);
+      const sid = ex ? ex.id : uid("s");
+      if (!ex)
+        db.prepare("INSERT INTO therapy_sessions(id,child_id,type_id,date,target,activities,response,therapist_id,home_recommendation) VALUES(?,?,?,?,?,?,?,?,?)")
+          .run(sid, kid, wicara.id, d, target, JSON.stringify(["Imitasi suara", "Kontak mata"]), res, dokter, "Latihan bicara 10 mnt/hari");
+      sessions.push({ id: sid, date: d });
+    }
+    for (const [i, status] of [[0, "paid"], [1, "unpaid"]])
+      if (!db.prepare("SELECT id FROM billing_items WHERE session_id=?").get(sessions[i].id))
+        db.prepare("INSERT INTO billing_items(id,child_id,date,description,qty,unit_price,session_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+          .run(uid("bi"), kid, sessions[i].date, "Terapi Wicara", 1, 120000, sessions[i].id, status, t);
+  }
   console.log("seed features ok");
 }

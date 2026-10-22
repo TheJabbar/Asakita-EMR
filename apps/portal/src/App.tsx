@@ -1,6 +1,6 @@
 // ponytail: one-file portal — mobile cards, bottom nav, plain fetch; curated endpoints only, never raw SOAP
 import React, { useEffect, useMemo, useState } from "react";
-import { growthGeometry, formatIDR, BAND_LABEL } from "@asakita/shared";
+import { growthGeometry, formatIDR, formatDMY, BAND_LABEL } from "@asakita/shared";
 // ponytail: same-origin default (Fly serves API+UI on one host); dev uses vite proxy below
 const API = (import.meta as any).env?.VITE_API_URL || "";
 // ponytail: tag every request with the app so the API picks the right session cookie (EMR + portal share one origin in prod)
@@ -270,7 +270,7 @@ function PortalChart({ curve, w = 340, h = 230 }: any) {
       })}
       {geo.child && <path d={geo.child} fill="none" stroke="#b8862f" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round" />}
       {geo.dots.map((p: any, i: number) => <circle key={p.id || i} cx={p.cx} cy={p.cy} r={4.5} fill={DOT[p.band] || "#1d6b4f"} stroke="#fff" strokeWidth={1.8}>
-        <title>{p.date} • {p.value} {curve.unit} • z {p.z} • persentil {p.percentile}</title>
+        <title>{formatDMY(p.date)} • {p.value} {curve.unit} • z {p.z} • persentil {p.percentile}</title>
       </circle>)}
       {geo.xTicks.map((t: any, i: number) => <text key={i} x={t.x} y={geo.h - 6} fontSize={8.5} textAnchor="middle" fill="#6f7d75">{t.label}</text>)}
       {geo.yTicks.map((t: any, i: number) => <text key={i} x={4} y={t.y + 3} fontSize={8.5} fill="#6f7d75">{t.label}</text>)}
@@ -304,8 +304,8 @@ function Growth({ route }: any) {
         <div style={{ fontSize: 12, color: "#1d6b4f" }}>{last ? (last.band === "normal" ? `✓ sesuai (${last.percentile} persentil)` : `${BAND_LABEL[last.band] || last.band} (${last.percentile} persentil)`) : "Belum ada data"}</div></div>
       <PortalChart curve={curve} />
       <div style={{ fontSize: 11.5, color: "#6f7d75", marginTop: 6 }}>{curve?.note}</div>
-      {d.slice(-4).reverse().map((x: any, i: number) => <div key={i} style={{ fontSize: 12.5, padding: "7px 0", borderBottom: "1px solid #eef2f0", display: "flex", justifyContent: "space-between" }}><span>{dID(x.date)}</span><b>{x[key] ?? "—"} {x[key] ? unit : ""}</b></div>)}
-      <div className="note" style={{ marginTop: 10 }}>Acuan kurva mengikuti standar WHO (0–5 tahun) atau CDC (5–19 tahun). Bawa buku KIA saat kontrol.</div>
+      {d.slice(-4).reverse().map((x: any, i: number) => <div key={i} style={{ fontSize: 12.5, padding: "7px 0", borderBottom: "1px solid #eef2f0", display: "flex", justifyContent: "space-between" }}><span>{formatDMY(x.date)}</span><b>{x[key] ?? "—"} {x[key] ? unit : ""}</b></div>)}
+      <div className="note" style={{ marginTop: 10 }}>Acuan kurva mengikuti standar WHO (0–5 tahun) atau CDC (5–19 tahun). Tanggal ditulis <b>DD-MM-YYYY</b>. Bawa buku KIA saat kontrol.</div>
     </div>
     <button className="btn btn-soft" onClick={() => (location.hash = "#/reports")}>Lihat laporan pertumbuhan →</button>
   </div>;
@@ -362,9 +362,10 @@ function Tagihan({ route }: any) {
 function Screen({ route }: any) {
   const id = route.split("/")[2] || "";
   const [d, setD] = useState<any[]>([]); const [kid, setKid] = useState(""); const [dnv, setDnv] = useState<any>(null);
+  const [ms, setMs] = useState<any[]>([]); const [progs, setProgs] = useState<any[]>([]);
   useEffect(() => {
-    if (!id) api.get("/api/portal/children").then((r) => { const k = r.data[0]; if (k) { setKid(k.id); api.get(`/api/portal/screening/${k.id}`).then((x) => setD(x.data)); api.get(`/api/portal/denver/${k.id}`).then(setDnv).catch(() => {}); } });
-    else { api.get(`/api/portal/screening/${id}`).then((r) => setD(r.data)).catch(() => {}); api.get(`/api/portal/denver/${id}`).then(setDnv).catch(() => {}); }
+    if (!id) api.get("/api/portal/children").then((r) => { const k = r.data[0]; if (k) { setKid(k.id); api.get(`/api/portal/screening/${k.id}`).then((x) => setD(x.data)); api.get(`/api/portal/denver/${k.id}`).then(setDnv).catch(() => {}); api.get(`/api/portal/milestones?childId=${k.id}`).then((x) => setMs(x.data)).catch(() => {}); api.get(`/api/portal/programs?childId=${k.id}`).then((x) => setProgs(x.data)).catch(() => {}); } });
+    else { api.get(`/api/portal/screening/${id}`).then((r) => setD(r.data)).catch(() => {}); api.get(`/api/portal/denver/${id}`).then(setDnv).catch(() => {}); api.get(`/api/portal/milestones?childId=${id}`).then((r) => setMs(r.data)).catch(() => {}); api.get(`/api/portal/programs?childId=${id}`).then((r) => setProgs(r.data)).catch(() => {}); }
   }, [id]);
   const DOMS: [string, string, string, string][] = [["motorik_kasar", "Motorik kasar", "🏃", "Berjalan, berlari, melompat"], ["motorik_halus", "Motorik halus", "✍️", "Menggenggam, menyusun, menjumput"], ["bahasa", "Bahasa", "💬", "Memahami & ekspresi kata"], ["sosial_emosional", "Sosial & emosional", "🤝", "Interaksi, bermain, mandiri"], ["kognitif", "Kognitif", "🧠", "Fokus & pemecahan masalah"]];
   return <div>
@@ -376,9 +377,24 @@ function Screen({ route }: any) {
       {dnv.domains.map((x: any) => <div key={x.label} style={{ marginBottom: 9 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}><span>{x.label}</span><span>{x.passed}/{x.total}</span></div>
         <div className="bar"><i style={{ width: x.progress + "%" }} /></div>
+        {(x.items || []).map((it: any, i: number) => <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 0", borderBottom: "1px solid #eef2f0", fontSize: 12.5 }}>
+          <span style={{ width: 18, height: 18, borderRadius: 6, display: "grid", placeItems: "center", flex: "none", fontSize: 11, color: "#fff", background: it.status === "pass" ? "#1d6b4f" : it.status === "not_yet" ? "#b8862f" : "#cfd8d3" }}>{it.status === "pass" ? "✓" : it.status === "not_yet" ? "•" : ""}</span>
+          <span style={{ flex: 1 }}>{it.text}</span>
+          <span className={"pill " + (it.status === "pass" ? "green" : it.status === "not_yet" ? "orange" : "")}>{it.status === "pass" ? "Lulus" : it.status === "not_yet" ? "Belum" : "Belum dicek"}</span>
+        </div>)}
       </div>)}
       {dnv.flags?.advanced ? <p style={{ fontSize: 12, color: "#1d6b4f", margin: "6px 0 0" }}>Some items sudah dikuasai lebih cepat dari usianya.</p> : null}
       {dnv.flags?.delayed ? <p style={{ fontSize: 12, color: "#b8862f", margin: "6px 0 0" }}>Ada item yang perlu ditindaklanjuti bersama terapis.</p> : null}
+    </div>}
+    {ms.length > 0 && <div className="card"><h4 style={{ margin: "0 0 8px" }}>Milestone perkembangan</h4>
+      <div className="chips">{ms.map((m: any) => <span key={m.key} className={"pill " + (m.status === "achieved" ? "green" : m.status === "concern" ? "orange" : "blue")}>{m.label} · {m.status === "achieved" ? "Tercapai" : m.status === "concern" ? "Perlu perhatian" : "Berjalan"}</span>)}</div>
+    </div>}
+    {progs.length > 0 && <div className="card"><h4 style={{ margin: "0 0 8px" }}>Program terapi</h4>
+      {progs.map((p: any) => <div key={p.type_id} style={{ padding: "8px 0", borderBottom: "1px solid #eef2f0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><b>{p.type_name || p.type_id}</b><span className="pill">{p.frequency}</span></div>
+        <div className="bar"><i style={{ width: p.progress + "%" }} /></div>
+        <div style={{ fontSize: 11.5, color: "#6f7d75", marginTop: 4 }}>{p.sessions} sesi · {p.progress}% · {p.status}</div>
+      </div>)}
     </div>}
     <button className="btn btn-p" onClick={() => (location.hash = "#/therapy/" + (id || kid))}>Lihat catatan terapi →</button>
   </div>;

@@ -491,6 +491,22 @@ app.get("/api/portal/screening/:id", P, needOwnChild, (c) => {
   const seen = new Map(); for (const r of all) if (!seen.has(r.domain)) seen.set(r.domain, r);
   return c.json({ data: [...seen.values()] });
 });
+// ponytail: parent view of the milestones + therapy programs (same data the EMR shows on Tumbuh Kembang)
+app.get("/api/portal/milestones", P, needOwnChild, (c) => {
+  const cid = c.req.query("childId");
+  if (!cid) return err(c, "invalid", "childId wajib", 400);
+  return c.json({ data: rows("SELECT key,label,status,updated_at FROM milestones WHERE child_id=? ORDER BY rowid", cid) });
+});
+app.get("/api/portal/programs", P, needOwnChild, (c) => {
+  const cid = c.req.query("childId");
+  if (!cid) return err(c, "invalid", "childId wajib", 400);
+  const data = rows("SELECT p.*,t.name type_name FROM therapy_programs p LEFT JOIN therapy_types t ON t.id=p.type_id WHERE p.child_id=?", cid)
+    .map((p) => {
+      const sessions = row("SELECT COUNT(*) c FROM therapy_sessions WHERE child_id=? AND type_id=?", cid, p.type_id)?.c ?? 0;
+      return { ...p, sessions, progress: Math.min(100, Math.round((sessions / 12) * 100)) };
+    });
+  return c.json({ data });
+});
 app.get("/api/portal/therapy/:id", P, needOwnChild, (c) => {
   const id = c.req.param("id");
   const types = rows("SELECT * FROM therapy_types");

@@ -19,6 +19,12 @@ export function formatIDR(n: number): string {
   return "Rp " + String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+// ponytail: the clinic writes dates DD-MM-YYYY (ISO in the DB, local display here)
+export function formatDMY(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : String(iso || "");
+}
+
 // build the geometry of a growth chart (bands + child line + axes)
 export function growthGeometry(curve: GrowthCurve, opts: { width: number; height: number; pad?: number }) {
   const w = opts.width, h = opts.height, P = opts.pad ?? 34;

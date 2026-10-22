@@ -157,15 +157,25 @@ denverRouter.put("/api/denver", need("owner", "dokter", "terapis"), async (c) =>
   audit(c.get("user").id, "denver_check", "child", b.child_id, { item: b.item_key, status: b.status });
   return c.json({ ok: true });
 });
-// ponytail: portal sees the score only — never raw clinician notes
+// ponytail: portal sees the score and the checklist of the current age band — never clinician notes
 denverRouter.get("/api/portal/denver/:id", need("parent"), needOwnChild, (c) => {
   const child = row("SELECT id,dob FROM children WHERE id=?", c.req.param("id"));
   if (!child) return err(c, "not_found", "not found", 404);
   const age = childAgeMonths(child.dob);
-  const score = scoreDenver(DENVER_BANDS, resultsOf(child.id), age);
+  const results = resultsOf(child.id);
+  const score = scoreDenver(DENVER_BANDS, results, age);
+  const band = DENVER_BANDS.find((b) => b.label === score.band);
+  const itemsByDomain = {};
+  for (const d of DENVER_DOMAINS) itemsByDomain[d.key] = [];
+  for (const it of band?.items || []) {
+    itemsByDomain[it.domain]?.push({ text: it.text, status: results[it.key]?.status || null });
+  }
   return c.json({
     band: score.band, progress: score.progress, checked: score.checked, total: score.total,
-    domains: score.domains.map((d) => ({ label: d.label, passed: d.passed, total: d.total, progress: d.progress })),
+    domains: score.domains.map((d) => ({
+      key: d.key, label: d.label, passed: d.passed, total: d.total, progress: d.progress,
+      items: itemsByDomain[d.key] || [],
+    })),
     flags: { delayed: score.delayed.length, advanced: score.advanced.length },
   });
 });
