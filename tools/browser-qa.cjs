@@ -254,6 +254,7 @@ async function emrSuite(browser) {
   // --- education articles (Sistem → Edukasi) ---
   await page.goto(BASE + "/emr/#/articles");
   await page.waitForSelector("text=Edukasi & Berita", { timeout: 15000 });
+  await page.waitForSelector(".card .denver-item", { timeout: 20000 }).catch(() => {});
   const artRows = await page.locator(".card .denver-item").count();
   check("EMR: education article list", artRows >= 13, artRows + " articles");
   const qaTitle = "QA Artikel " + Date.now();
@@ -399,6 +400,7 @@ async function childlessSuite(browser) {
   await page.fill('input[type="password"]', "prototype");
   await page.click('button:has-text("Daftar akun")');
   await page.waitForSelector(".hello", { timeout: 30000 });
+  await page.waitForSelector("text=Belum ada data anak tertaut", { timeout: 20000 }).catch(() => {});
   const home = await page.locator(".phone").innerText();
   check("PORTAL: empty parent has no child data", /Belum ada data anak tertaut/.test(home) && !/24[–-]36 bln/.test(home));
   await page.goto(BASE + "/portal/#/screening");
@@ -455,6 +457,7 @@ async function adminSuite(browser) {
   check("EMR: admin sees Sistem → Edukasi, not Role & User", /Edukasi/.test(navText) && !/Role & User/.test(navText), navText.replace(/\n+/g, " | "));
   await page.goto(BASE + "/emr/#/articles");
   await page.waitForSelector("text=Edukasi & Berita", { timeout: 15000 });
+  await page.waitForSelector(".card .denver-item", { timeout: 20000 }).catch(() => {});
   check("EMR: admin can open the education editor", (await page.locator(".card .denver-item").count()) >= 13);
   check("EMR: admin page has no console errors", errors.length === 0, errors.slice(0, 2).join(" | "));
   await ctx.close();
