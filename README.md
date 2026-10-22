@@ -70,8 +70,8 @@ Point the frontends at the API: `apps/emr/.env` / `apps/portal/.env` → `VITE_A
 
 | Feature | Where | Data source |
 |---|---|---|
-| **Kurva tumbuh kembang** (BB / TB / LK + z-score + persentil) | EMR → Tumbuh Kembang, Portal → Grafik pertumbuhan | WHO Child Growth Standards (< 5 tahun) via `who-growth-standards` (npm, tabel LMS resmi, offline) + CDC 2000 (5–19 tahun) via `apps/api/src/reference/cdc-lms.json` (LMS resmi, di-vendor dari cdc.gov). Acuan dipilih otomatis per usia, bisa diganti manual. |
-| **Checklist Denver** (4 domain × 8 rentang usia, status lulus/belum/tidak ada info) | EMR → Tumbuh Kembang → tab **Checklist Denver**, Portal → Perkembangan (ringkasan) | `apps/api/src/denver.js` (katalog item), skor per domain + penanda keterlambatan/lebih cepat |
+| **Kurva tumbuh kembang** (BB / TB / LK + z-score + persentil) | EMR → Tumbuh Kembang, Portal → Grafik pertumbuhan | WHO Child Growth Standards (< 5 tahun) via `who-growth-standards` (npm, tabel LMS resmi, offline) + CDC 2000 (5–19 tahun) via `apps/api/src/reference/cdc-lms.json` (LMS resmi, di-vendor dari cdc.gov). Acuan dipilih otomatis per usia, bisa diganti manual. Tanggal selalu ditulis **DD-MM-YYYY**. |
+| **Checklist Denver** (4 domain × 8 rentang usia, status lulus/belum/tidak ada info) | EMR → Tumbuh Kembang → tab **Checklist Denver**, Portal → Perkembangan (checklist usia anak + skor) | `apps/api/src/denver.js` (katalog item), skor per domain + penanda keterlambatan/lebih cepat |
 | **Resep latihan + tracking harian** | EMR → Terapi (tulis resep per sesi), Portal → Resep latihan (centang per hari) | `home_programs` + `home_program_items` |
 | **Billing & cetak struk** (IDR) | EMR → Data Pasien → Billing, Portal → Tagihan | `billing_items` + `service_prices` (harga default dapat diubah), struk PDF + cetak (`window.print`) |
 
@@ -91,6 +91,22 @@ node apps/api/scripts/build-cdc-data.mjs <folder-dengan-wtage.csv,statage.csv,bm
 - Schema changes must be additive: `migrate()` runs `CREATE TABLE IF NOT EXISTS` on every boot, so new tables appear on deploy; never rename or drop a column in place.
 - Reference data that the API reads at boot (e.g. `apps/api/src/reference/cdc-lms.json`) **must be committed** — check with `git ls-files apps/api/src/reference`.
 - After a deploy, run `BASE=https://asakita-emr.onrender.com node tools/browser-qa.cjs` (46 checks) before declaring the release good.
+
+## Roadmap — Supabase (planned)
+
+The app currently runs on SQLite (`node:sqlite`, file in `/data`) — fine for the demo. Moving to Supabase (Postgres) touches these places:
+
+| Today (SQLite) | Supabase (Postgres) |
+|---|---|
+| `node:sqlite` + `apps/api/src/db.js` (`rows/row/run`) | `pg` pool (same three helpers → the rest of the code barely changes) |
+| `INSERT OR REPLACE INTO` | `INSERT … ON CONFLICT (pk) DO UPDATE` (a dozen statements in seed/denver/home) |
+| `group_concat(u.name …)` (parent names) | `string_agg(u.name …, ', ')` |
+| `substr(created_at,1,7)`, `date(starts_at)` | `to_char(created_at,'YYYY-MM')`, `starts_at::date` |
+| `PRAGMA foreign_keys` | real FK constraints (safe once data is clean) |
+| local file uploads (`/data/uploads`) | Supabase Storage bucket + signed URLs |
+| JWT cookie from `apps/api/src/auth.js` | keep as-is (simplest), or swap to Supabase Auth sessions |
+
+Schema itself is portable — the tables are plain columns; only the dialect above changes.
 
 ## Demo accounts (password: `prototype`)
 
