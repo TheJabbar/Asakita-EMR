@@ -20,6 +20,6 @@ for (const [key, file] of [["weight", "wtage.csv"], ["height", "statage.csv"], [
   out.indicators[key] = { male, female };
 }
 
-mkdirSync(join(import.meta.dirname, "../src/data"), { recursive: true });
-writeFileSync(join(import.meta.dirname, "../src/data/cdc-lms.json"), JSON.stringify(out));
-console.log("wrote cdc-lms.json");
+mkdirSync(join(import.meta.dirname, "../src/reference"), { recursive: true });
+writeFileSync(join(import.meta.dirname, "../src/reference/cdc-lms.json"), JSON.stringify(out));
+console.log("wrote src/reference/cdc-lms.json");

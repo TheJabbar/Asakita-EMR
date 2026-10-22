@@ -5,8 +5,15 @@ import { readFileSync } from "node:fs";
 import { getTable, lookupLms, zScoreToPercentile } from "who-growth-standards";
 import { rows } from "./db.js";
 import { err, need, STAFF, needOwnChild } from "./guard.js";
+import { log } from "./log.js";
 
-const CDC = JSON.parse(readFileSync(new URL("./data/cdc-lms.json", import.meta.url), "utf8"));
+// ponytail: CDC tables are vendored in src/reference/ — a missing file must not kill the whole API
+let CDC = { indicators: {} };
+try {
+  CDC = JSON.parse(readFileSync(new URL("./reference/cdc-lms.json", import.meta.url), "utf8"));
+} catch (e) {
+  log.error("CDC reference tables missing — CDC curves unavailable", { file: "src/reference/cdc-lms.json" });
+}
 
 export const INDICATORS = {
   weight: { who: "wfa", unit: "kg", label: "Berat badan", cdc: "weight" },
@@ -71,7 +78,7 @@ function evaluate(ind, sex, age, value, force) {
     ? whoLms(ind.who, sex, Math.min(age.days, WHO_MAX_DAYS))
     : cdcLms(ind.cdc, sex, age.months);
   const z = zFromLms(value, lms);
-  return { standard: useWho ? "WHO" : "CDC", z, median: lmsFromZ(0, lms) };
+  return { standard: useWho ? "WHO" : "CDC", z, median: lms ? lmsFromZ(0, lms) : null };
 }
 
 // --- build the curve payload for a child ---
