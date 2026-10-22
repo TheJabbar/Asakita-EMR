@@ -212,14 +212,14 @@ export default function App() {
       {/* ponytail: no SOAP nav — notes only make sense inside a visit, opened from Data Pasien → Catatan (route stays for deep links) */}
       {nav("/therapy", "⬢", "Terapi")}
       {nav("/progress", "◭", "Tumbuh Kembang")}
-      {nav("/denver", "✓", "Checklist Denver")}
+      {/* ponytail: the Denver checklist is a tab inside Tumbuh Kembang, not its own menu item */}
       {nav("/reports", "▤", "Laporan")}
       {["owner", "dokter"].includes(me?.role) ? nav("/users", "⚿", "Role & User", "Sistem") : null}
       <div className="side-foot">Masuk sebagai <b>{me.role}</b><br /><button className="btn btn-s" style={{ marginTop: 10, width: "100%", color: "#fff", background: "#ffffff22", borderColor: "#ffffff33" }} onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include", headers: H }).then(() => setMe(null))}>Keluar</button></div>
     </nav>
     <main className="main">
       <Topbar me={me} />
-      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress /> : R.startsWith("/denver") ? <Denver /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
+      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress /> : R.startsWith("/denver") ? <Progress initial="denver" /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
       <div className="footer">Asakita EMR — {new Date().getFullYear()}</div>
     </main>
   </div>;
@@ -618,13 +618,14 @@ function GrowthChart({ curve, w = 560, h = 300 }: any) {
   </div>;
 }
 
-function Progress() {
+function Progress({ initial = "kurva" }: any) {
   const [kids, setKids] = useState<any[]>([]); const [cid, setCid] = useState("");
   const [m, setM] = useState<any[]>([]); const [progs, setProgs] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]); const [pt, setPt] = useState(""); const [pf, setPf] = useState("2x/minggu");
   const [ind, setInd] = useState("weight"); const [curve, setCurve] = useState<any>(null); const [std, setStd] = useState("");
   const [adding, setAdding] = useState(false);
   const [gf, setGf] = useState<any>({ date: new Date().toISOString().slice(0, 10), weight_kg: "", height_cm: "", head_cm: "" });
+  const [view, setView] = useState(initial);
   useEffect(() => { api.get("/api/patients").then((r) => { setKids(r.data); if (r.data[0] && !cid) setCid(r.data[0].id); }).catch(() => {}); api.get("/api/therapy-types").then((r) => { setTypes(r.data); if (r.data[0]) setPt(r.data[0].id); }).catch(() => {}); }, []);
   const load = (id: string) => { if (!id) return; api.get("/api/milestones?childId=" + id).then((r) => setM(r.data)).catch(() => {}); api.get("/api/therapy-programs?childId=" + id).then((r) => setProgs(r.data)).catch(() => {}); };
   useEffect(() => { load(cid); }, [cid]);
@@ -638,7 +639,12 @@ function Progress() {
     api.post("/api/growth", body).then(() => { setAdding(false); setGf({ ...gf, weight_kg: "", height_cm: "", head_cm: "" }); }).catch((e) => alert("Gagal (" + e.message + ")"));
   };
   const pts = curve?.points || [];
-  return <div><h2 className="serif">Tumbuh kembang</h2><p className="sub">Kurva pertumbuhan dengan acuan WHO (0–5 tahun) dan CDC (5–19 tahun), checklist Denver, dan program terapi.</p>
+  return <div><h2 className="serif">Tumbuh kembang</h2><p className="sub">Kurva pertumbuhan (acuan WHO &amp; CDC), checklist Denver, milestone, dan program terapi.</p>
+    <div className="tabs" role="tablist">
+      <button role="tab" className={"tab" + (view === "kurva" ? " on" : "")} onClick={() => setView("kurva")}>Kurva &amp; milestone</button>
+      <button role="tab" className={"tab" + (view === "denver" ? " on" : "")} onClick={() => setView("denver")}>Checklist Denver</button>
+    </div>
+    {view === "denver" ? <Denver cid={cid} onChild={setCid} kids={kids} /> : <>
     <div className="toolbar">
       <select className="inp" value={cid} onChange={(e) => setCid(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select>
       <div className="seg">{IND_TABS.map(([k, l]) => <button key={k} className={"seg-b" + (ind === k ? " on" : "")} onClick={() => setInd(k)}>{l}</button>)}</div>
@@ -662,8 +668,8 @@ function Progress() {
       </div>
       <div>
         <div className="card"><h3 style={{ marginTop: 0 }}>Checklist Denver</h3>
-          <p className="sub">Centang milestone perkembangan per usia anak.</p>
-          <a className="btn btn-s" href={"#/denver" + (cid ? "?childId=" + cid : "")}>Buka checklist →</a>
+          <p className="sub">Centang milestone perkembangan anak per usia (4 domain).</p>
+          <button className="btn btn-s" onClick={() => setView("denver")}>Buka checklist →</button>
         </div>
         <div className="card"><h3 style={{ marginTop: 0 }}>Milestone</h3>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{m.map((x: any) => <button key={x.key} className={"tab" + (x.status === "achieved" ? " on" : "")} title={x.status} onClick={() => { const nx = x.status === "achieved" ? "in_progress" : x.status === "in_progress" ? "concern" : "achieved"; api.put("/api/milestones", { child_id: cid, key: x.key, label: x.label, status: nx }).then(() => load(cid)); }}>{x.label} • {x.status === "achieved" ? "✓" : x.status}</button>)}{!m.length && <span className="sub">Belum ada milestone.</span>}</div>
@@ -675,29 +681,31 @@ function Progress() {
         </div>
       </div>
     </div>
+    </>}
   </div>;
 }
 
-// ponytail: Denver II checklist — staff ticks each item (lulus / belum / tidak ada info)
-function Denver() {
-  const h = useHash();
-  const [kids, setKids] = useState<any[]>([]); const [cid, setCid] = useState("");
+// ponytail: Denver II checklist — staff ticks each item (lulus / belum / tidak ada info).
+// Lives as a tab inside "Tumbuh kembang"; the child is picked by the parent page.
+function Denver({ cid: cidProp = "", onChild, kids: kidsProp }: any) {
+  const [kids, setKids] = useState<any[]>(kidsProp || []);
+  const [cid, setCid] = useState(cidProp);
   const [d, setD] = useState<any>(null); const [band, setBand] = useState("");
+  const pick = (id: string) => { setCid(id); onChild?.(id); };
+  useEffect(() => { if (cidProp && cidProp !== cid) setCid(cidProp); }, [cidProp]);
   useEffect(() => {
-    const q = new URLSearchParams((h.split("?")[1] || ""));
-    api.get("/api/patients").then((r) => {
-      setKids(r.data);
-      setCid(q.get("childId") || r.data[0]?.id || "");
-    }).catch(() => {});
-  }, [h]);
+    if (kidsProp?.length) { setKids(kidsProp); if (!cid && kidsProp[0]) pick(kidsProp[0].id); return; }
+    const q = new URLSearchParams((location.hash.split("?")[1] || ""));
+    api.get("/api/patients").then((r) => { setKids(r.data); pick(q.get("childId") || r.data[0]?.id || ""); }).catch(() => {});
+  }, []);
   const load = (id: string) => { if (!id) return; api.get("/api/denver?childId=" + id).then((r) => { setD(r); setBand((b) => b || r.bands.find((x: any) => x.isCurrent)?.key || r.bands[0]?.key || ""); }).catch(() => setD(null)); };
   useEffect(() => { load(cid); }, [cid]);
   const mark = (itemKey: string, status: string) => api.put("/api/denver", { child_id: cid, item_key: itemKey, status }).then(() => load(cid)).catch((e) => alert("Gagal (" + e.message + ")"));
   const shown = d?.bands?.find((b: any) => b.key === band) || d?.bands?.[0];
   const doms = ["motor", "language", "social", "fine"];
   const DOM_LABEL: Record<string, string> = { motor: "Motorik Kasar", language: "Bahasa", social: "Personal–Sosial", fine: "Motorik Halus–Adaptif" };
-  return <div><h2 className="serif">Checklist Denver</h2><p className="sub">Milestone perkembangan 4 domain per rentang usia — centang hasil pemeriksaan anak.</p>
-    <div className="toolbar"><select className="inp" value={cid} onChange={(e) => setCid(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select></div>
+  return <div>
+    {kids.length > 1 && <div className="toolbar"><select className="inp" value={cid} onChange={(e) => pick(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select></div>}
     {!d ? <div className="card"><div className="skel" style={{ width: "50%" }} /><div className="skel" style={{ marginTop: 10 }} /></div> : <>
       <div className="grid three">
         <div className="card stat"><div><small>Rentang usia</small><div className="num" style={{ fontSize: 24 }}>{d.score.band}</div></div></div>

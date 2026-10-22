@@ -139,17 +139,21 @@ async function emrSuite(browser) {
   await page.waitForTimeout(1200);
   check("EMR: standard override select", true);
 
-  // --- denver ---
-  await page.goto(BASE + "/emr/#/denver");
-  await page.waitForSelector(".denver-item", { timeout: 15000 });
+  // --- denver (tab inside Tumbuh Kembang) ---
+  await page.goto(BASE + "/emr/#/progress");
+  await page.waitForSelector('.tabs button:has-text("Checklist Denver")', { timeout: 15000 });
+  await page.click('.tabs button:has-text("Checklist Denver")');
+  await page.waitForSelector(".denver-item", { timeout: 20000 });
   const items = await page.locator(".denver-item").count();
   check("EMR: denver items listed", items > 5, items + " items");
   const chips = await page.locator(".denver-item .chip").count();
   check("EMR: denver status chips", chips >= items, chips + " chips");
   await page.locator(".denver-item .chip:has-text('Lulus')").first().click();
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(1200);
   const on = await page.locator(".denver-item .chip.on.pass").count();
   check("EMR: denver item checked", on >= 1, on + " checked");
+  const navHasDenver = await page.locator('.side a:has-text("Checklist Denver")').count();
+  check("EMR: denver lives in Tumbuh Kembang (no separate nav item)", navHasDenver === 0, navHasDenver + " nav links");
 
   // --- therapy + recipe ---
   await page.goto(BASE + "/emr/#/therapy");

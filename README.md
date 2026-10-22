@@ -71,7 +71,7 @@ Point the frontends at the API: `apps/emr/.env` / `apps/portal/.env` → `VITE_A
 | Feature | Where | Data source |
 |---|---|---|
 | **Kurva tumbuh kembang** (BB / TB / LK + z-score + persentil) | EMR → Tumbuh Kembang, Portal → Grafik pertumbuhan | WHO Child Growth Standards (< 5 tahun) via `who-growth-standards` (npm, tabel LMS resmi, offline) + CDC 2000 (5–19 tahun) via `apps/api/src/reference/cdc-lms.json` (LMS resmi, di-vendor dari cdc.gov). Acuan dipilih otomatis per usia, bisa diganti manual. |
-| **Checklist Denver** (4 domain × 8 rentang usia, status lulus/belum/tidak ada info) | EMR → Checklist Denver, Portal → Perkembangan (ringkasan) | `apps/api/src/denver.js` (katalog item), skor per domain + penanda keterlambatan/lebih cepat |
+| **Checklist Denver** (4 domain × 8 rentang usia, status lulus/belum/tidak ada info) | EMR → Tumbuh Kembang → tab **Checklist Denver**, Portal → Perkembangan (ringkasan) | `apps/api/src/denver.js` (katalog item), skor per domain + penanda keterlambatan/lebih cepat |
 | **Resep latihan + tracking harian** | EMR → Terapi (tulis resep per sesi), Portal → Resep latihan (centang per hari) | `home_programs` + `home_program_items` |
 | **Billing & cetak struk** (IDR) | EMR → Data Pasien → Billing, Portal → Tagihan | `billing_items` + `service_prices` (harga default dapat diubah), struk PDF + cetak (`window.print`) |
 

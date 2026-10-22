@@ -254,4 +254,5 @@ SATUSEHAT integration, billing/payments beyond read-only Billing tab, realtime c
   - **`?standard=`** hanya menerima `WHO`/`CDC`; nilai lain kembali ke pilihan otomatis.
   - **Seed idempoten untuk fitur baru** — DB yang sudah ter-seed (produksi) tetap mendapat baris demo (resep, Denver, tagihan) saat deploy.
   - **Script `apps/api`**: `dev`/`start` menunjuk `src/index.js` (`src/dev.js` memang tidak pernah ada), script `build`/`start` yang tidak terpakai dihapus.
-  - **Browser QA**: `tools/browser-qa.cjs` (Playwright + Edge/Chrome lokal) menelusuri EMR + portal end-to-end (46 pemeriksaan) — dipakai untuk produksi juga, dan mencetak id sisa data QA supaya bisa dibersihkan.
+  - **Browser QA**: `tools/browser-qa.cjs` (Playwright + Edge/Chrome lokal) menelusuri EMR + portal end-to-end (47 pemeriksaan) — dipakai untuk produksi juga, dan mencetak id sisa data QA supaya bisa dibersihkan.
+  - **Checklist Denver dipindah ke dalam "Tumbuh Kembang"** — bukan menu terpisah: halaman `Tumbuh Kembang` jadi dua tab (`Kurva & milestone` | `Checklist Denver`) dengan pilihan anak yang sama; route lama `#/denver` tetap membuka tab Denver (deep link aman).
