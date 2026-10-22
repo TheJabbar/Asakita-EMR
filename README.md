@@ -37,7 +37,7 @@ podman compose down        # data kept in volume asakita-data
 podman compose down -v     # danger: deletes the SQLite volume too
 ```
 
-First boot seeds demo accounts, two children, appointments, growth data and 5 articles (see `apps/api/src/seed.js`; re-running is idempotent).
+First boot seeds demo accounts, three children (with BB/TB/LK growth curves), appointments, therapy sessions, a home program, Denver checklist items, billing rows and 14 articles (see `apps/api/src/seed.js`; re-running is idempotent).
 
 Bulk import real data from Excel: fill `apps/api/import-template.csv` (or Save As CSV from Excel — `,` and `;` separators both work), then:
 
