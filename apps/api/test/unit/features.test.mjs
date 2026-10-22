@@ -80,6 +80,46 @@ describe("unit: Denver checklist", () => {
     const gone = await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json();
     assert.ok(!gone.bands[0].items.some((i) => i.text.startsWith("Item uji QA")));
   });
+  it("doctors manage the Denver age bands (add / edit / remove)", async () => {
+    const ter = await login("terapis@asakita.demo");
+    const before = await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json();
+    const bands = before.bands.length;
+    // terapis may not touch the instrument
+    assert.equal((await app.request("/api/denver/bands", { method: "POST", headers: H(ter), body: JSON.stringify({ label: "X", min_months: 1, max_months: 2 }) })).status, 403);
+    // validation
+    assert.equal((await app.request("/api/denver/bands", { method: "POST", headers: H(staff), body: JSON.stringify({ label: "", min_months: 1, max_months: 2 }) })).status, 400);
+    assert.equal((await app.request("/api/denver/bands", { method: "POST", headers: H(staff), body: JSON.stringify({ label: "X", min_months: 10, max_months: 5 }) })).status, 400);
+    // add
+    const created = await app.request("/api/denver/bands", { method: "POST", headers: H(staff), body: JSON.stringify({ label: "Rentang QA", min_months: 100, max_months: 120 }) });
+    assert.equal(created.status, 201);
+    const id = (await created.json()).id;
+    const added = await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json();
+    assert.equal(added.bands.length, bands + 1);
+    assert.ok(added.bands.some((b) => b.label === "Rentang QA" && b.minMonths === 100 && b.maxMonths === 120));
+    // edit
+    assert.equal((await app.request(`/api/denver/bands/${id}`, { method: "PUT", headers: H(staff), body: JSON.stringify({ label: "Rentang QA (ubah)", max_months: 130 }) })).status, 200);
+    const edited = await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json();
+    const b2 = edited.bands.find((b) => b.id === id);
+    assert.equal(b2.label, "Rentang QA (ubah)");
+    assert.equal(b2.maxMonths, 130);
+    assert.equal(b2.minMonths, 100); // untouched fields stay
+    // remove
+    assert.equal((await app.request(`/api/denver/bands/${id}`, { method: "DELETE", headers: H(staff) })).status, 200);
+    const after = await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json();
+    assert.equal(after.bands.length, bands);
+  });
+  it("deleting a band removes its items and checks", async () => {
+    const band = await app.request("/api/denver/bands", { method: "POST", headers: H(staff), body: JSON.stringify({ label: "Rentang QA 2", min_months: 200, max_months: 220 }) });
+    const bid = (await band.json()).id;
+    const item = await app.request("/api/denver/items", { method: "POST", headers: H(staff), body: JSON.stringify({ band_key: bid, domain: "motor", text: "Item dalam rentang QA" }) });
+    const iid = (await item.json()).id;
+    await app.request("/api/denver", { method: "PUT", headers: H(staff), body: JSON.stringify({ child_id: childId, item_key: iid, status: "pass" }) });
+    assert.equal((await app.request(`/api/denver/bands/${bid}`, { method: "DELETE", headers: H(staff) })).status, 200);
+    const list = await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json();
+    assert.ok(!list.bands.some((b) => b.id === bid));
+    assert.ok(!list.bands.some((b) => b.items.some((i) => i.id === iid)));
+    assert.equal((await app.request("/api/denver", { method: "PUT", headers: H(staff), body: JSON.stringify({ child_id: childId, item_key: iid, status: "pass" }) })).status, 404); // item is gone
+  });
   it("portal sees only the score of its own child", async () => {
     const own = await app.request(`/api/portal/denver/${childId}`, { headers: H(parent) });
     assert.equal(own.status, 404); // parent is not linked to this child

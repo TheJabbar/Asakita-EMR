@@ -3,24 +3,31 @@
 import { Hono } from "hono";
 import { row, rows, run, uid } from "./db.js";
 import { err, need, STAFF, needOwnChild, audit } from "./guard.js";
-import { DENVER_DOMAINS, DENVER_BANDS, DENVER_STATUSES, STATUS_LABEL, bandForAge } from "./denver-catalog.js";
+import { DENVER_DOMAINS, DENVER_BANDS, DENVER_STATUSES, STATUS_LABEL } from "./denver-catalog.js";
 
-export { DENVER_DOMAINS, DENVER_STATUSES, STATUS_LABEL, bandForAge };
+export { DENVER_DOMAINS, DENVER_STATUSES, STATUS_LABEL };
 
-// ponytail: bands = static structure (age ranges) + items from the database
+// ponytail: bands + items come from the database (age ranges and item texts are editable)
 export function loadBands() {
-  const items = rows("SELECT id,band_key,domain,text,sort FROM denver_items ORDER BY sort, rowid");
-  if (!items.length) return DENVER_BANDS; // table not seeded yet → fall back to the bundled catalog
-  return DENVER_BANDS.map((b) => ({
-    ...b,
-    items: items.filter((i) => i.band_key === b.key).map((i) => ({ id: i.id, key: i.id, domain: i.domain, text: i.text })),
+  const bandRows = rows("SELECT id,label,min_months,max_months,sort FROM denver_bands ORDER BY sort, min_months, rowid");
+  const itemRows = rows("SELECT id,band_key,domain,text,sort FROM denver_items ORDER BY sort, rowid");
+  if (!bandRows.length) return DENVER_BANDS; // not migrated yet → bundled catalog
+  return bandRows.map((b) => ({
+    key: b.id, id: b.id, label: b.label, minMonths: b.min_months, maxMonths: b.max_months, sort: b.sort,
+    items: itemRows.filter((i) => i.band_key === b.id).map((i) => ({ id: i.id, key: i.id, domain: i.domain, text: i.text })),
   }));
+}
+
+// the band that covers this age (fallback: the last one, like the bundled catalog)
+export function bandForAge(bands, ageMonths) {
+  if (ageMonths === null || ageMonths === undefined || !bands.length) return null;
+  return bands.find((b) => ageMonths >= b.minMonths && ageMonths < b.maxMonths) || bands.at(-1);
 }
 
 // ponytail: simplified Denver-style scoring — per-domain progress in the current age band,
 // plus delayed (failed item in a lower band) and advanced (passed item in a higher band) flags.
 export function scoreDenver(bands, results, ageMonths) {
-  const current = bandForAge(ageMonths);
+  const current = bandForAge(bands, ageMonths);
   const statusOf = (key) => results[key]?.status || null;
   const perDomain = {};
   const delayed = [];
@@ -81,16 +88,59 @@ denverRouter.get("/api/denver", need(...STAFF), (c) => {
   const age = childAgeMonths(child.dob);
   const results = resultsOf(child.id);
   const bands = loadBands();
-  const current = bandForAge(age);
+  const current = bandForAge(bands, age);
   return c.json({
     childId: child.id, childName: child.full_name, ageMonths: age,
     bands: bands.map((b) => ({
-      key: b.key, label: b.label, minMonths: b.minMonths, maxMonths: b.maxMonths,
+      key: b.key, id: b.id, label: b.label, minMonths: b.minMonths, maxMonths: b.maxMonths,
       isCurrent: current ? b.key === current.key : false,
       items: b.items.map((it) => ({ ...it, status: results[it.key]?.status || null, note: results[it.key]?.note || "" })),
     })),
     score: scoreDenver(bands, results, age),
   });
+});
+
+// ponytail: manage the age bands (owner + dokter only, audited)
+denverRouter.post("/api/denver/bands", need("owner", "dokter"), async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  const label = String(b.label || "").trim().slice(0, 60);
+  const min = Number(b.min_months), max = Number(b.max_months);
+  if (!label) return err(c, "invalid", "nama rentang usia wajib", 400);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max <= min) return err(c, "invalid", "rentang usia tidak valid (min < max)", 400);
+  const id = uid("db");
+  const sort = row("SELECT COALESCE(MAX(sort),0)+1 s FROM denver_bands")?.s ?? 1;
+  run("INSERT INTO denver_bands(id,label,min_months,max_months,sort) VALUES(?,?,?,?,?)", id, label, Math.round(min), Math.round(max), sort);
+  audit(c.get("user").id, "denver_band_create", "denver_band", id, { label, min, max });
+  return c.json({ id }, 201);
+});
+
+denverRouter.put("/api/denver/bands/:id", need("owner", "dokter"), async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  const band = row("SELECT * FROM denver_bands WHERE id=?", c.req.param("id"));
+  if (!band) return err(c, "not_found", "rentang usia tidak ada", 404);
+  const label = b.label === undefined ? band.label : String(b.label || "").trim().slice(0, 60);
+  const min = b.min_months === undefined ? band.min_months : Number(b.min_months);
+  const max = b.max_months === undefined ? band.max_months : Number(b.max_months);
+  const sort = b.sort === undefined ? band.sort : Number(b.sort);
+  if (!label) return err(c, "invalid", "nama rentang usia wajib", 400);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max <= min) return err(c, "invalid", "rentang usia tidak valid (min < max)", 400);
+  run("UPDATE denver_bands SET label=?, min_months=?, max_months=?, sort=? WHERE id=?", label, Math.round(min), Math.round(max), Number.isFinite(sort) ? sort : band.sort, band.id);
+  audit(c.get("user").id, "denver_band_update", "denver_band", band.id, { label, min, max });
+  return c.json({ ok: true });
+});
+
+denverRouter.delete("/api/denver/bands/:id", need("owner", "dokter"), (c) => {
+  const band = row("SELECT * FROM denver_bands WHERE id=?", c.req.param("id"));
+  if (!band) return err(c, "not_found", "rentang usia tidak ada", 404);
+  if (row("SELECT COUNT(*) c FROM denver_bands").c <= 1) return err(c, "invalid", "harus ada minimal satu rentang usia", 400);
+  // the items of the band and their checks go with it
+  for (const it of rows("SELECT id FROM denver_items WHERE band_key=?", band.id)) {
+    run("DELETE FROM denver_results WHERE item_key=?", it.id);
+    run("DELETE FROM denver_items WHERE id=?", it.id);
+  }
+  run("DELETE FROM denver_bands WHERE id=?", band.id);
+  audit(c.get("user").id, "denver_band_delete", "denver_band", band.id, { label: band.label });
+  return c.json({ ok: true });
 });
 
 // ponytail: manage the item lists — add / edit / remove (owner + dokter only, audited)

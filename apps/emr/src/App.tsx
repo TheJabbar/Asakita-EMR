@@ -697,14 +697,25 @@ function Denver({ cid: cidProp = "", onChild, kids: kidsProp, canEdit }: any) {
   const load = (id: string) => { if (!id) return; api.get("/api/denver?childId=" + id).then((r) => { setD(r); setBand((b) => b || r.bands.find((x: any) => x.isCurrent)?.key || r.bands[0]?.key || ""); }).catch(() => setD(null)); };
   useEffect(() => { load(cid); }, [cid]);
   const mark = (itemKey: string, status: string) => api.put("/api/denver", { child_id: cid, item_key: itemKey, status }).then(() => load(cid)).catch((e) => alert("Gagal (" + e.message + ")"));
-  // ponytail: manage the item lists (owner/dokter) — add / edit / remove
+  // ponytail: manage the checklist (owner/dokter) — age bands and items: add / edit / remove
   const [newText, setNewText] = useState(""); const [newDomain, setNewDomain] = useState("motor");
+  const [bandLabel, setBandLabel] = useState(""); const [bandMin, setBandMin] = useState(""); const [bandMax, setBandMax] = useState("");
   const addItem = () => {
     if (!newText.trim()) return alert("Tulis dulu teks itemnya.");
     api.post("/api/denver/items", { band_key: band, domain: newDomain, text: newText }).then(() => { setNewText(""); load(cid); }).catch((e) => alert("Gagal (" + e.message + ")"));
   };
   const editItem = (it: any, text: string) => api.put(`/api/denver/items/${it.id || it.key}`, { text }).then(() => load(cid)).catch((e) => alert("Gagal (" + e.message + ")"));
   const delItem = (it: any) => { if (confirm("Hapus item ini dari checklist?")) api.del(`/api/denver/items/${it.id || it.key}`).then(() => load(cid)).catch((e) => alert("Gagal (" + e.message + ")")); };
+  const addBand = () => {
+    if (!bandLabel.trim() || bandMin === "" || bandMax === "") return alert("Isi nama, batas bawah, dan batas atas (bulan).");
+    api.post("/api/denver/bands", { label: bandLabel, min_months: Number(bandMin), max_months: Number(bandMax) }).then(() => { setBandLabel(""); setBandMin(""); setBandMax(""); load(cid); }).catch((e) => alert("Gagal (" + e.message + ")"));
+  };
+  const editBand = (b: any, body: any) => api.put(`/api/denver/bands/${b.id || b.key}`, body).then(() => load(cid)).catch((e) => alert("Gagal (" + e.message + ")"));
+  const delBand = (b: any) => {
+    const n = (b.items || []).length;
+    if (!confirm(`Hapus rentang usia "${b.label}"?${n ? ` ${n} item di dalamnya ikut terhapus.` : ""}`)) return;
+    api.del(`/api/denver/bands/${b.id || b.key}`).then(() => { setBand(""); load(cid); }).catch((e) => alert("Gagal (" + e.message + ")"));
+  };
   const shown = d?.bands?.find((b: any) => b.key === band) || d?.bands?.[0];
   const doms = ["motor", "language", "social", "fine"];
   const DOM_LABEL: Record<string, string> = { motor: "Motorik Kasar", language: "Bahasa", social: "Personal–Sosial", fine: "Motorik Halus–Adaptif" };
@@ -734,8 +745,30 @@ function Denver({ cid: cidProp = "", onChild, kids: kidsProp, canEdit }: any) {
         {shown.isCurrent ? <p className="sub">Rentang usia saat ini — sentang di sini untuk skoring utama.</p> : <p className="sub">Rentang usia di atas/bawah — gunakan untuk menandai keterlambatan atau kemampuan lebih.</p>}
       </div>}
       {canEdit && <div className="card no-print" style={{ marginTop: 14 }}>
-        <h3 style={{ marginTop: 0 }}>Kelola item checklist</h3>
-        <p className="sub">Tambah, ubah, atau hapus item pada rentang usia <b>{shown?.label || "—"}</b>. Perubahan berlaku untuk semua pasien.</p>
+        <h3 style={{ marginTop: 0 }}>Kelola checklist</h3>
+        <h4 style={{ margin: "0 0 6px", fontSize: 12.5, textTransform: "uppercase", letterSpacing: ".6px", color: "#43544d" }}>Rentang usia</h4>
+        <p className="sub">Tambah, ubah, atau hapus rentang usia (bulan). Item di dalam rentang ikut terhapus bila rentangnya dihapus.</p>
+        {(d?.bands || []).map((b: any) => <div className="denver-item" key={b.id || b.key}>
+          <input className="inp" style={{ width: 170, height: 38 }} defaultValue={b.label}
+            onBlur={(e) => { const t = e.target.value.trim(); if (t && t !== b.label) editBand(b, { label: t }); }} />
+          <span className="denver-ops">
+            <input className="inp" style={{ width: 78, height: 38 }} type="number" defaultValue={b.minMonths} title="Usia minimum (bulan)"
+              onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v !== b.minMonths) editBand(b, { min_months: v }); }} />
+            <span style={{ fontSize: 12, color: "#6d7c74" }}>–</span>
+            <input className="inp" style={{ width: 78, height: 38 }} type="number" defaultValue={b.maxMonths} title="Usia maksimum (bulan)"
+              onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v !== b.maxMonths) editBand(b, { max_months: v }); }} />
+            <span style={{ fontSize: 12, color: "#6d7c74" }}>bln</span>
+            <button className="btn btn-s" title="Hapus rentang usia" onClick={() => delBand(b)}>🗑</button>
+          </span>
+        </div>)}
+        <div className="toolbar" style={{ marginTop: 10 }}>
+          <input className="inp" style={{ flex: 1, minWidth: 170 }} placeholder="Nama rentang (cth. 6–9 bulan)" value={bandLabel} onChange={(e) => setBandLabel(e.target.value)} />
+          <input className="inp" style={{ width: 84 }} type="number" placeholder="min" value={bandMin} onChange={(e) => setBandMin(e.target.value)} />
+          <input className="inp" style={{ width: 84 }} type="number" placeholder="max" value={bandMax} onChange={(e) => setBandMax(e.target.value)} />
+          <button className="btn btn-s" onClick={addBand}>+ Rentang usia</button>
+        </div>
+        <hr style={{ border: 0, borderTop: "1px solid #eef2f0", margin: "14px 0" }} />
+        <h4 style={{ margin: "0 0 6px", fontSize: 12.5, textTransform: "uppercase", letterSpacing: ".6px", color: "#43544d" }}>Item pada rentang {shown?.label || "—"}</h4>
         <div className="toolbar" style={{ marginBottom: 10 }}>
           <select className="inp" value={newDomain} onChange={(e) => setNewDomain(e.target.value)}>
             {doms.map((k) => <option key={k} value={k}>{DOM_LABEL[k]}</option>)}

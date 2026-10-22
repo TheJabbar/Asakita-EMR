@@ -168,7 +168,7 @@ async function emrSuite(browser) {
   const navHasDenver = await page.locator('.side a:has-text("Checklist Denver")').count();
   check("EMR: denver lives in Tumbuh Kembang (no separate nav item)", navHasDenver === 0, navHasDenver + " nav links");
   // doctors manage the item lists
-  const manage = page.locator(".card:has-text('Kelola item checklist')");
+  const manage = page.locator(".card:has-text('Kelola checklist')");
   check("EMR: denver item manager visible for dokter", (await manage.count()) === 1);
   const NEWITEM = "Item QA " + Date.now();
   await manage.locator("input[placeholder*='Teks item baru']").fill(NEWITEM);
@@ -188,6 +188,25 @@ async function emrSuite(browser) {
   await page.waitForTimeout(1500);
   const left = await page.locator(`.denver-item input[value="${NEWITEM} edit"]`).count();
   check("EMR: delete denver item", left === 0, left + " left");
+  // age bands: add → edit → delete
+  const BAND = "Rentang QA " + Date.now();
+  await manage.locator("input[placeholder*='Nama rentang']").fill(BAND);
+  await manage.locator("input[placeholder='min']").fill("150");
+  await manage.locator("input[placeholder='max']").fill("170");
+  await manage.locator("button:has-text('+ Rentang usia')").click();
+  await page.waitForTimeout(1500);
+  const bandAdded = await page.locator(`.denver-item input[value="${BAND}"]`).count();
+  check("EMR: add age band", bandAdded === 1, bandAdded + " added");
+  const bandRow = page.locator(".denver-item", { has: page.locator(`input[value="${BAND}"]`) });
+  await bandRow.locator("input").first().fill(BAND + " edit");
+  await bandRow.locator("input").first().blur();
+  await page.waitForTimeout(1500);
+  const bandEdited = await page.locator(`.denver-item input[value="${BAND} edit"]`).count();
+  check("EMR: edit age band", bandEdited === 1);
+  await page.locator(".denver-item", { has: page.locator(`input[value="${BAND} edit"]`) }).locator("button[title='Hapus rentang usia']").click();
+  await page.waitForTimeout(1500);
+  const bandLeft = await page.locator(`.denver-item input[value="${BAND} edit"]`).count();
+  check("EMR: delete age band", bandLeft === 0, bandLeft + " left");
 
   // --- therapy + recipe ---
   await page.goto(BASE + "/emr/#/therapy");

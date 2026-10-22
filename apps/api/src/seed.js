@@ -101,8 +101,9 @@ if (demoKid) {
         .run(uid("hpi"), hp, label, 1, note, "[]");
   }
   for (const [k, s] of [["b5-motor-1", "pass"], ["b5-language-1", "pass"], ["b5-social-2", "not_yet"]])
-    db.prepare("INSERT OR IGNORE INTO denver_results(child_id,item_key,status,note,checked_at,checked_by) VALUES(?,?,?,?,?,?)")
-      .run(kid, k, s, "", t, null);
+    if (db.prepare("SELECT id FROM denver_items WHERE id=?").get(k)) // only seed checks for items that still exist
+      db.prepare("INSERT OR IGNORE INTO denver_results(child_id,item_key,status,note,checked_at,checked_by) VALUES(?,?,?,?,?,?)")
+        .run(kid, k, s, "", t, null);
   // demo: program terapi + sesi (2 sudah tertagih, 1 belum → tombol "Tagih sesi terapi" masih ada yang bisa ditagih)
   const wicara = db.prepare("SELECT id FROM therapy_types WHERE name='Terapi Wicara'").get();
   if (wicara) {
