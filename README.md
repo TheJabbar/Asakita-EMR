@@ -84,6 +84,8 @@ node apps/api/scripts/build-cdc-data.mjs <folder-dengan-wtage.csv,statage.csv,bm
 ## Production checklist (Render)
 
 - Deploy = push to `main` (Render Blueprint `render.yaml`, auto-deploy, health check `/api/healthz`).
+- **Data persistence (check this first!).** The database must live on a Render **disk mounted at `/data`** — otherwise the SQLite file lives inside the container and *every deploy/restart wipes all records*. Attach the disk in the Render dashboard (Disk `asakita-data` → mount path `/data`), then confirm the boot log says `data directory is on a mounted volume`; if it says `NOT a mounted volume`, stop and fix the disk before using the service with real data.
+- Manual backup (safe while the app runs): `npm run db:backup -w apps/api` → timestamped copy in `<db dir>/backups` via `VACUUM INTO`.
 - Required env: `DATABASE_URL=file:/data/asakita.db`, `UPLOADS_DIR=/data/uploads`, `JWT_SECRET` (set in the dashboard — **not** in the repo), optional `GOOGLE_CLIENT_ID`, `FRONTEND_ORIGINS`.
 - Data lives on the Render disk (`asakita-data` → `/data`); back it up with `wrangler d1`-style dumps only for the Cloudflare path — for Render use a disk snapshot or `sqlite3 .backup`.
 - Schema changes must be additive: `migrate()` runs `CREATE TABLE IF NOT EXISTS` on every boot, so new tables appear on deploy; never rename or drop a column in place.

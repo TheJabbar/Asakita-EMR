@@ -12,6 +12,7 @@ import { growthRouter } from "./growth.js";
 import { denverRouter } from "./denver.js";
 import { homeRouter, createHomeProgram } from "./home.js";
 import { billingRouter } from "./billing.js";
+import { assertPersistent } from "./backup.js";
 
 migrate();
 const app = new Hono();
@@ -575,6 +576,7 @@ app.get("/uploads/:fn", (c) => {
 
 const port = Number(process.env.PORT || 8787);
 if (process.env.NODE_ENV !== "test") {
+  assertPersistent(dbPath()); // loud warning if the data dir is not a persistent volume
   serve({ fetch: app.fetch, port }, () => log.info("api listening", {
     port, db: dbPath(), uploads: UP, emr: DIST_EMR, portal: DIST_PORTAL, google: !!process.env.GOOGLE_CLIENT_ID,
   }));
