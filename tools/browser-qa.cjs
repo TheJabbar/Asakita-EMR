@@ -57,12 +57,13 @@ async function emrSuite(browser) {
   await page.click("button:has-text('Masuk')");
   await page.waitForSelector("text=Dashboard", { timeout: 20000 });
   check("EMR: login → dashboard", true);
-
+  // the summary arrives async — wait for the cards, not just the heading
+  await page.waitForSelector(".stat", { timeout: 20000 }).catch(() => {});
+  await page.waitForSelector(".bars .bar", { timeout: 20000 }).catch(() => {});
   const stats = await page.locator(".stat").count();
   check("EMR: dashboard stat cards", stats >= 4, stats + " cards");
   const bars = await page.locator(".bars .bar").count();
   check("EMR: monthly bar chart", bars === 6, bars + " bars");
-
   // --- patients + detail tabs ---
   await page.goto(BASE + "/emr/#/patients");
   await page.waitForSelector("table.tbl tbody tr", { timeout: 15000 });
