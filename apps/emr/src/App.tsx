@@ -214,12 +214,12 @@ export default function App() {
       {nav("/progress", "◭", "Tumbuh Kembang")}
       {/* ponytail: the Denver checklist is a tab inside Tumbuh Kembang, not its own menu item */}
       {nav("/reports", "▤", "Laporan")}
-      {["owner", "dokter"].includes(me?.role) ? nav("/users", "⚿", "Role & User", "Sistem") : null}
+      {["owner", "dokter"].includes(me?.role) ? <><div className="side-sec">Sistem</div>{nav("/checklist", "✓", "Checklist Denver")}{nav("/users", "⚿", "Role & User")}</> : null}
       <div className="side-foot">Masuk sebagai <b>{me.role}</b><br /><button className="btn btn-s" style={{ marginTop: 10, width: "100%", color: "#fff", background: "#ffffff22", borderColor: "#ffffff33" }} onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include", headers: H }).then(() => setMe(null))}>Keluar</button></div>
     </nav>
     <main className="main">
       <Topbar me={me} />
-      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress me={me} /> : R.startsWith("/denver") ? <Progress initial="denver" me={me} /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
+      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress me={me} /> : R.startsWith("/checklist") ? <ChecklistAdmin /> : R.startsWith("/denver") ? <Progress initial="denver" me={me} /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
       <div className="footer">Asakita EMR — {new Date().getFullYear()}</div>
     </main>
   </div>;
@@ -746,46 +746,103 @@ function Denver({ cid: cidProp = "", onChild, kids: kidsProp, canEdit }: any) {
       </div>}
       {canEdit && <div className="card no-print" style={{ marginTop: 14 }}>
         <h3 style={{ marginTop: 0 }}>Kelola checklist</h3>
-        <h4 style={{ margin: "0 0 6px", fontSize: 12.5, textTransform: "uppercase", letterSpacing: ".6px", color: "#43544d" }}>Rentang usia</h4>
-        <p className="sub">Tambah, ubah, atau hapus rentang usia (bulan). Item di dalam rentang ikut terhapus bila rentangnya dihapus.</p>
-        {(d?.bands || []).map((b: any) => <div className="denver-item" key={b.id || b.key}>
-          <input className="inp" style={{ width: 170, height: 38 }} defaultValue={b.label}
-            onBlur={(e) => { const t = e.target.value.trim(); if (t && t !== b.label) editBand(b, { label: t }); }} />
-          <span className="denver-ops">
-            <input className="inp" style={{ width: 78, height: 38 }} type="number" defaultValue={b.minMonths} title="Usia minimum (bulan)"
-              onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v !== b.minMonths) editBand(b, { min_months: v }); }} />
-            <span style={{ fontSize: 12, color: "#6d7c74" }}>–</span>
-            <input className="inp" style={{ width: 78, height: 38 }} type="number" defaultValue={b.maxMonths} title="Usia maksimum (bulan)"
-              onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v !== b.maxMonths) editBand(b, { max_months: v }); }} />
-            <span style={{ fontSize: 12, color: "#6d7c74" }}>bln</span>
-            <button className="btn btn-s" title="Hapus rentang usia" onClick={() => delBand(b)}>🗑</button>
-          </span>
-        </div>)}
-        <div className="toolbar" style={{ marginTop: 10 }}>
-          <input className="inp" style={{ flex: 1, minWidth: 170 }} placeholder="Nama rentang (cth. 6–9 bulan)" value={bandLabel} onChange={(e) => setBandLabel(e.target.value)} />
-          <input className="inp" style={{ width: 84 }} type="number" placeholder="min" value={bandMin} onChange={(e) => setBandMin(e.target.value)} />
-          <input className="inp" style={{ width: 84 }} type="number" placeholder="max" value={bandMax} onChange={(e) => setBandMax(e.target.value)} />
-          <button className="btn btn-s" onClick={addBand}>+ Rentang usia</button>
-        </div>
-        <hr style={{ border: 0, borderTop: "1px solid #eef2f0", margin: "14px 0" }} />
-        <h4 style={{ margin: "0 0 6px", fontSize: 12.5, textTransform: "uppercase", letterSpacing: ".6px", color: "#43544d" }}>Item pada rentang {shown?.label || "—"}</h4>
-        <div className="toolbar" style={{ marginBottom: 10 }}>
-          <select className="inp" value={newDomain} onChange={(e) => setNewDomain(e.target.value)}>
-            {doms.map((k) => <option key={k} value={k}>{DOM_LABEL[k]}</option>)}
-          </select>
-          <input className="inp" style={{ flex: 1, minWidth: 220 }} placeholder="Teks item baru…" value={newText} onChange={(e) => setNewText(e.target.value)} />
-          <button className="btn btn-s" onClick={addItem}>+ Tambah item</button>
-        </div>
-        {(shown?.items || []).map((it: any) => <div className="denver-item" key={it.id || it.key}>
-          <input className="inp" style={{ flex: 1, minWidth: 220, height: 38 }} defaultValue={it.text}
-            onBlur={(e) => { const t = e.target.value.trim(); if (t && t !== it.text) editItem(it, t); }} />
-          <span className="denver-ops">
-            <span className="pill">{DOM_LABEL[it.domain]}</span>
-            <button className="btn btn-s" title="Hapus item" onClick={() => delItem(it)}>🗑</button>
-          </span>
-        </div>)}
+        <p className="sub">Rentang usia dan item checklist dikelola terpisah.</p>
+        <a className="btn btn-s" href="#/checklist">Buka pengaturan checklist →</a>
       </div>}
     </>}
+  </div>;
+}
+
+// ponytail: checklist admin (Sistem) — doctors curate the Denver age bands and their items
+function ChecklistAdmin() {
+  const [cat, setCat] = useState<any>(null); const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
+  const [band, setBand] = useState("");
+  const [bandLabel, setBandLabel] = useState(""); const [bandMin, setBandMin] = useState(""); const [bandMax, setBandMax] = useState("");
+  const [newText, setNewText] = useState(""); const [newDomain, setNewDomain] = useState("motor");
+  // ponytail: admin calls read the error body (the shared api helper only reports the status code)
+  const call = async (path: string, method: string, body?: any) => {
+    const r = await fetch(API + path, { method, credentials: "include", headers: { ...H, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error?.message || "HTTP " + r.status);
+    return j;
+  };
+  const load = () => call("/api/denver/catalog", "GET").then((c) => { setCat(c); setBand((b) => b || c.bands[0]?.id || ""); setErr(""); }).catch((e) => setErr(e.message));
+  useEffect(() => { load(); }, []);
+  const DOM_LABEL: Record<string, string> = { motor: "Motorik Kasar", language: "Bahasa", social: "Personal–Sosial", fine: "Motorik Halus–Adaptif" };
+  const bands = cat?.bands || [];
+  const shown = bands.find((b: any) => b.id === band) || bands[0];
+  const addBand = async () => {
+    if (!bandLabel.trim() || bandMin === "" || bandMax === "") return setErr("Isi nama, batas bawah, dan batas atas (bulan).");
+    try { await call("/api/denver/bands", "POST", { label: bandLabel, min_months: Number(bandMin), max_months: Number(bandMax) }); setBandLabel(""); setBandMin(""); setBandMax(""); setMsg("Rentang usia ditambahkan."); load(); }
+    catch (e: any) { setErr(e.message); }
+  };
+  const editBand = async (b: any, body: any) => {
+    try { await call(`/api/denver/bands/${b.id}`, "PUT", body); setMsg("Rentang usia diperbarui."); load(); }
+    catch (e: any) { setErr(e.message); load(); }
+  };
+  const delBand = async (b: any) => {
+    const n = (b.items || []).length;
+    if (!confirm(`Hapus rentang usia "${b.label}"?${n ? ` ${n} item ikut terhapus.` : ""}`)) return;
+    try { await call(`/api/denver/bands/${b.id}`, "DELETE"); setMsg("Rentang usia dihapus."); setBand(""); load(); }
+    catch (e: any) { setErr(e.message); }
+  };
+  const addItem = async () => {
+    if (!newText.trim()) return setErr("Tulis dulu teks itemnya.");
+    try { await call("/api/denver/items", "POST", { band_key: shown?.id, domain: newDomain, text: newText }); setNewText(""); setMsg("Item ditambahkan."); load(); }
+    catch (e: any) { setErr(e.message); }
+  };
+  const editItem = async (it: any, text: string) => {
+    try { await call(`/api/denver/items/${it.id}`, "PUT", { text }); setMsg("Item diperbarui."); load(); }
+    catch (e: any) { setErr(e.message); load(); }
+  };
+  const delItem = async (it: any) => {
+    if (!confirm("Hapus item ini dari checklist?")) return;
+    try { await call(`/api/denver/items/${it.id}`, "DELETE"); setMsg("Item dihapus."); load(); }
+    catch (e: any) { setErr(e.message); }
+  };
+  return <div><h2 className="serif">Checklist Denver</h2><p className="sub">Kelola rentang usia dan item checklist yang dipakai untuk menilai perkembangan anak. Perubahan berlaku untuk semua pasien.</p>
+    {err && <div className="card" style={{ background: "#fbe6e4", borderColor: "#f0bdb7" }}><b>⚠ {err}</b></div>}
+    {msg && !err && <div className="card" style={{ background: "#e4f4ea", borderColor: "#bfe0c9" }}><b>✓ {msg}</b></div>}
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Rentang usia</h3>
+      <p className="sub">Satu rentang untuk satu kelompok usia — rentang yang tumpang tindih akan ditolak saat disimpan.</p>
+      {bands.map((b: any) => <div className="denver-item" key={b.id}>
+        <input className="inp" style={{ width: 190, height: 38 }} defaultValue={b.label} onBlur={(e) => { const t = e.target.value.trim(); if (t && t !== b.label) editBand(b, { label: t }); }} />
+        <span className="denver-ops">
+          <input className="inp" style={{ width: 76, height: 38 }} type="number" defaultValue={b.minMonths} title="Batas bawah (bulan)" onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v !== b.minMonths) editBand(b, { min_months: v }); }} />
+          <span style={{ fontSize: 12, color: "#6d7c74" }}>–</span>
+          <input className="inp" style={{ width: 76, height: 38 }} type="number" defaultValue={b.maxMonths} title="Batas atas (bulan)" onBlur={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v !== b.maxMonths) editBand(b, { max_months: v }); }} />
+          <span style={{ fontSize: 12, color: "#6d7c74" }}>bln</span>
+          {(b.overlaps || []).length > 0 && <span className="pill bad" title={"Tumpang tindih dengan: " + b.overlaps.join(", ")}>⚠ tumpang tindih</span>}
+          <button className="btn btn-s" title="Hapus rentang usia" onClick={() => delBand(b)}>🗑</button>
+        </span>
+      </div>)}
+      <div className="toolbar" style={{ marginTop: 10 }}>
+        <input className="inp" style={{ flex: 1, minWidth: 170 }} placeholder="Nama rentang (cth. 6–9 bulan)" value={bandLabel} onChange={(e) => setBandLabel(e.target.value)} />
+        <input className="inp" style={{ width: 84 }} type="number" placeholder="min" value={bandMin} onChange={(e) => setBandMin(e.target.value)} />
+        <input className="inp" style={{ width: 84 }} type="number" placeholder="max" value={bandMax} onChange={(e) => setBandMax(e.target.value)} />
+        <button className="btn btn-s" onClick={addBand}>+ Rentang usia</button>
+      </div>
+    </div>
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Item checklist</h3>
+      {bands.length > 0 && <div className="tabs">{bands.map((b: any) => <button key={b.id} className={"tab" + (b.id === shown?.id ? " on" : "")} onClick={() => setBand(b.id)}>{b.label} ({b.items.length})</button>)}</div>}
+      <div className="toolbar" style={{ marginBottom: 10 }}>
+        <select className="inp" value={newDomain} onChange={(e) => setNewDomain(e.target.value)}>
+          {(cat?.domains || [{ key: "motor", label: "Motorik Kasar" }]).map((d: any) => <option key={d.key} value={d.key}>{d.label}</option>)}
+        </select>
+        <input className="inp" style={{ flex: 1, minWidth: 220 }} placeholder="Teks item baru…" value={newText} onChange={(e) => setNewText(e.target.value)} />
+        <button className="btn btn-s" onClick={addItem}>+ Tambah item</button>
+      </div>
+      {(shown?.items || []).map((it: any) => <div className="denver-item" key={it.id}>
+        <input className="inp" style={{ flex: 1, minWidth: 220, height: 38 }} defaultValue={it.text} onBlur={(e) => { const t = e.target.value.trim(); if (t && t !== it.text) editItem(it, t); }} />
+        <span className="denver-ops">
+          <span className="pill">{(cat?.domains || []).find((d: any) => d.key === it.domain)?.label || DOM_LABEL[it.domain]}</span>
+          <button className="btn btn-s" title="Hapus item" onClick={() => delItem(it)}>🗑</button>
+        </span>
+      </div>)}
+      {shown && !(shown.items || []).length && <p className="sub">Belum ada item pada rentang ini.</p>}
+    </div>
   </div>;
 }
 

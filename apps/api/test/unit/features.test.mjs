@@ -120,6 +120,27 @@ describe("unit: Denver checklist", () => {
     assert.ok(!list.bands.some((b) => b.items.some((i) => i.id === iid)));
     assert.equal((await app.request("/api/denver", { method: "PUT", headers: H(staff), body: JSON.stringify({ child_id: childId, item_key: iid, status: "pass" }) })).status, 404); // item is gone
   });
+  it("age bands may not overlap", async () => {
+    const bands = (await (await app.request("/api/denver/catalog", { headers: H(staff) })).json()).bands;
+    const b = bands[0];
+    // overlapping range → 409 with a readable message
+    const clash = await app.request("/api/denver/bands", { method: "POST", headers: H(staff), body: JSON.stringify({ label: "Bentrok", min_months: b.minMonths, max_months: b.maxMonths }) });
+    assert.equal(clash.status, 409);
+    assert.match((await clash.json()).error.message, /tumpang tindih/);
+    // editing a band into an overlap is rejected too
+    const other = bands[1];
+    const clash2 = await app.request(`/api/denver/bands/${other.id}`, { method: "PUT", headers: H(staff), body: JSON.stringify({ min_months: b.minMonths, max_months: b.maxMonths }) });
+    assert.equal(clash2.status, 409);
+    // a non-overlapping range is accepted
+    const ok = await app.request("/api/denver/bands", { method: "POST", headers: H(staff), body: JSON.stringify({ label: "Rentang Bebas", min_months: 900, max_months: 960 }) });
+    assert.equal(ok.status, 201);
+    const id = (await ok.json()).id;
+    await app.request(`/api/denver/bands/${id}`, { method: "DELETE", headers: H(staff) });
+    // the catalogue reports overlaps for the UI badge
+    const cat = await (await app.request("/api/denver/catalog", { headers: H(staff) })).json();
+    assert.ok(Array.isArray(cat.bands[0].overlaps));
+    assert.ok(cat.bands[0].items.length > 0 && "domain" in cat.bands[0].items[0]);
+  });
   it("portal sees only the score of its own child", async () => {
     const own = await app.request(`/api/portal/denver/${childId}`, { headers: H(parent) });
     assert.equal(own.status, 404); // parent is not linked to this child

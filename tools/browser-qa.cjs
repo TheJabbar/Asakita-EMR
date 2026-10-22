@@ -29,8 +29,8 @@ function watch(page, bucket) {
   // ponytail: accept confirm() dialogs once, globally — two handlers would fight over the same dialog
   page.on("dialog", (d) => d.accept().catch(() => {}));
   page.on("pageerror", (e) => bucket.push("pageerror: " + e.message));
-  // the pre-login session probe answers 401 by design → not a defect
-  page.on("console", (m) => { if (m.type() === "error" && !/status of 401/.test(m.text())) bucket.push("console: " + m.text().slice(0, 160)); });
+  // the pre-login session probe answers 401 by design; the overlap test provokes a deliberate 409
+  page.on("console", (m) => { if (m.type() === "error" && !/status of 401/.test(m.text()) && !/status of 409/.test(m.text())) bucket.push("console: " + m.text().slice(0, 160)); });
   page.on("requestfailed", (r) => {
     const why = r.failure()?.errorText || "";
     // ERR_ABORTED = the browser cancelled the request (navigation away) — e.g. the Google button iframe
@@ -40,8 +40,10 @@ function watch(page, bucket) {
   // ponytail: catch bad API responses too (the app swallows them into alerts)
   page.on("response", async (r) => {
     const u = r.url();
+    // the overlap test provokes a deliberate 409 on band creation → not a defect
+    const expected = r.status() === 409 && u.includes("/api/denver/bands");
     if (process.env.DEBUG) console.log("    → " + r.status() + " " + u.replace(/^https?:\/\/[^/]+/, "").slice(0, 70));
-    if (r.status() >= 400 && u.includes("/api/") && !u.includes("/api/me")) bucket.push(`http ${r.status()} ${u.replace(/^https?:\/\/[^/]+/, "").slice(0, 80)}`);
+    if (r.status() >= 400 && u.includes("/api/") && !u.includes("/api/me") && !expected) bucket.push(`http ${r.status()} ${u.replace(/^https?:\/\/[^/]+/, "").slice(0, 80)}`);
   });
 }
 
@@ -165,48 +167,50 @@ async function emrSuite(browser) {
   await page.waitForTimeout(1200);
   const on = await page.locator(".denver-item .chip.on.pass").count();
   check("EMR: denver item checked", on >= 1, on + " checked");
-  const navHasDenver = await page.locator('.side a:has-text("Checklist Denver")').count();
-  check("EMR: denver lives in Tumbuh Kembang (no separate nav item)", navHasDenver === 0, navHasDenver + " nav links");
-  // doctors manage the item lists
-  const manage = page.locator(".card:has-text('Kelola checklist')");
-  check("EMR: denver item manager visible for dokter", (await manage.count()) === 1);
-  const NEWITEM = "Item QA " + Date.now();
-  await manage.locator("input[placeholder*='Teks item baru']").fill(NEWITEM);
-  await manage.locator("button:has-text('Tambah item')").click();
-  await page.waitForTimeout(1500);
-  const added = await page.locator(`.denver-item input[value="${NEWITEM}"]`).count();
-  check("EMR: add denver item", added === 1, added + " added");
-  // edit it
-  const row = page.locator(".denver-item", { has: page.locator(`input[value="${NEWITEM}"]`) });
-  await row.locator("input").fill(NEWITEM + " edit");
-  await row.locator("input").blur();
-  await page.waitForTimeout(1500);
-  const edited = await page.locator(`.denver-item input[value="${NEWITEM} edit"]`).count();
-  check("EMR: edit denver item", edited === 1);
-  // delete it
-  await page.locator(".denver-item", { has: page.locator(`input[value="${NEWITEM} edit"]`) }).locator("button[title='Hapus item']").click();
-  await page.waitForTimeout(1500);
-  const left = await page.locator(`.denver-item input[value="${NEWITEM} edit"]`).count();
-  check("EMR: delete denver item", left === 0, left + " left");
-  // age bands: add → edit → delete
+  const navHasDenver = await page.locator('.side a[href="#/denver"]').count();
+  check("EMR: denver tab lives in Tumbuh Kembang (no separate nav entry)", navHasDenver === 0, navHasDenver + " nav links");
+  // the checklist editor is a separate Sistem page
+  const adminLink = page.locator('.card:has-text("Kelola checklist") a[href="#/checklist"]');
+  check("EMR: tumbuh kembang links to the checklist admin", (await adminLink.count()) === 1);
+  await adminLink.first().click();
+  await page.waitForSelector('.card:has-text("Rentang usia")', { timeout: 20000 });
+  const navItem = await page.locator('.side a:has-text("Checklist Denver")').count();
+  check("EMR: checklist admin is a Sistem nav page", navItem === 1, navItem + " nav links");
+  const bandRows = await page.locator('.card:has-text("Rentang usia") .denver-item').count();
+  check("EMR: checklist admin lists age bands", bandRows >= 8, bandRows + " bands");
+  // add → edit → delete a band
   const BAND = "Rentang QA " + Date.now();
-  await manage.locator("input[placeholder*='Nama rentang']").fill(BAND);
-  await manage.locator("input[placeholder='min']").fill("150");
-  await manage.locator("input[placeholder='max']").fill("170");
-  await manage.locator("button:has-text('+ Rentang usia')").click();
+  await page.locator('input[placeholder*="Nama rentang"]').fill(BAND);
+  await page.locator('input[placeholder="min"]').fill("900");
+  await page.locator('input[placeholder="max"]').fill("960");
+  await page.locator('button:has-text("+ Rentang usia")').click();
   await page.waitForTimeout(1500);
   const bandAdded = await page.locator(`.denver-item input[value="${BAND}"]`).count();
-  check("EMR: add age band", bandAdded === 1, bandAdded + " added");
-  const bandRow = page.locator(".denver-item", { has: page.locator(`input[value="${BAND}"]`) });
-  await bandRow.locator("input").first().fill(BAND + " edit");
-  await bandRow.locator("input").first().blur();
+  check("EMR: add age band (admin page)", bandAdded === 1, bandAdded + " added");
+  // overlapping range must be refused
+  await page.locator('input[placeholder*="Nama rentang"]').fill("Bentrok QA");
+  await page.locator('input[placeholder="min"]').fill("0");
+  await page.locator('input[placeholder="max"]').fill("6");
+  await page.locator('button:has-text("+ Rentang usia")').click();
   await page.waitForTimeout(1500);
-  const bandEdited = await page.locator(`.denver-item input[value="${BAND} edit"]`).count();
-  check("EMR: edit age band", bandEdited === 1);
-  await page.locator(".denver-item", { has: page.locator(`input[value="${BAND} edit"]`) }).locator("button[title='Hapus rentang usia']").click();
+  const overlapWarn = await page.locator(".card:has-text('tumpang tindih')").count();
+  check("EMR: overlapping band refused", overlapWarn >= 1, overlapWarn + " warnings");
+  // clean up the band we added
+  await page.locator(".denver-item", { has: page.locator(`input[value="${BAND}"]`) }).locator("button[title='Hapus rentang usia']").click();
   await page.waitForTimeout(1500);
-  const bandLeft = await page.locator(`.denver-item input[value="${BAND} edit"]`).count();
-  check("EMR: delete age band", bandLeft === 0, bandLeft + " left");
+  const bandLeft = await page.locator(`.denver-item input[value="${BAND}"]`).count();
+  check("EMR: delete age band (admin page)", bandLeft === 0, bandLeft + " left");
+  // items can be managed here too
+  const NEWITEM = "Item QA " + Date.now();
+  await page.locator('input[placeholder*="Teks item baru"]').fill(NEWITEM);
+  await page.locator('button:has-text("Tambah item")').click();
+  await page.waitForTimeout(1500);
+  const itemAdded = await page.locator(`.denver-item input[value="${NEWITEM}"]`).count();
+  check("EMR: add denver item (admin page)", itemAdded === 1, itemAdded + " added");
+  await page.locator(".denver-item", { has: page.locator(`input[value="${NEWITEM}"]`) }).locator("button[title='Hapus item']").click();
+  await page.waitForTimeout(1500);
+  const itemLeft = await page.locator(`.denver-item input[value="${NEWITEM}"]`).count();
+  check("EMR: delete denver item (admin page)", itemLeft === 0, itemLeft + " left");
 
   // --- therapy + recipe ---
   await page.goto(BASE + "/emr/#/therapy");

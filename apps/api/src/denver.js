@@ -65,6 +65,11 @@ export function scoreDenver(bands, results, ageMonths) {
   };
 }
 
+// ponytail: bands must not overlap — one checklist per age range (checked on save + listed in the catalog)
+export function findOverlaps(bands, id, min, max) {
+  return bands.filter((b) => b.id !== id && min < b.maxMonths && max > b.minMonths);
+}
+
 // --- routes ---
 export const denverRouter = new Hono();
 
@@ -100,6 +105,19 @@ denverRouter.get("/api/denver", need(...STAFF), (c) => {
   });
 });
 
+// ponytail: the catalogue on its own — used by the checklist admin page (no patient needed)
+denverRouter.get("/api/denver/catalog", need(...STAFF), (c) => {
+  const bands = loadBands();
+  return c.json({
+    bands: bands.map((b) => ({
+      id: b.id, key: b.key, label: b.label, minMonths: b.minMonths, maxMonths: b.maxMonths,
+      items: b.items.map((i) => ({ id: i.id, domain: i.domain, text: i.text })),
+      overlaps: findOverlaps(bands, b.id, b.minMonths, b.maxMonths).map((o) => o.label),
+    })),
+    domains: DENVER_DOMAINS,
+  });
+});
+
 // ponytail: manage the age bands (owner + dokter only, audited)
 denverRouter.post("/api/denver/bands", need("owner", "dokter"), async (c) => {
   const b = await c.req.json().catch(() => ({}));
@@ -107,6 +125,8 @@ denverRouter.post("/api/denver/bands", need("owner", "dokter"), async (c) => {
   const min = Number(b.min_months), max = Number(b.max_months);
   if (!label) return err(c, "invalid", "nama rentang usia wajib", 400);
   if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max <= min) return err(c, "invalid", "rentang usia tidak valid (min < max)", 400);
+  const clashes = findOverlaps(loadBands(), null, min, max);
+  if (clashes.length) return err(c, "overlap", `rentang usia tumpang tindih dengan "${clashes[0].label}"`, 409);
   const id = uid("db");
   const sort = row("SELECT COALESCE(MAX(sort),0)+1 s FROM denver_bands")?.s ?? 1;
   run("INSERT INTO denver_bands(id,label,min_months,max_months,sort) VALUES(?,?,?,?,?)", id, label, Math.round(min), Math.round(max), sort);
@@ -124,6 +144,8 @@ denverRouter.put("/api/denver/bands/:id", need("owner", "dokter"), async (c) => 
   const sort = b.sort === undefined ? band.sort : Number(b.sort);
   if (!label) return err(c, "invalid", "nama rentang usia wajib", 400);
   if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max <= min) return err(c, "invalid", "rentang usia tidak valid (min < max)", 400);
+  const clashes = findOverlaps(loadBands(), band.id, min, max);
+  if (clashes.length) return err(c, "overlap", `rentang usia tumpang tindih dengan "${clashes[0].label}"`, 409);
   run("UPDATE denver_bands SET label=?, min_months=?, max_months=?, sort=? WHERE id=?", label, Math.round(min), Math.round(max), Number.isFinite(sort) ? sort : band.sort, band.id);
   audit(c.get("user").id, "denver_band_update", "denver_band", band.id, { label, min, max });
   return c.json({ ok: true });
