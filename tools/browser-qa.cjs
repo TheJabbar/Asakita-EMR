@@ -360,11 +360,43 @@ async function portalSuite(browser) {
   await ctx.close();
 }
 
+// ponytail: a brand-new parent (no linked child) must see empty states, never demo placeholders.
+// Leaves one parent account per run — there is no delete-user endpoint; the demo DB resets on deploy.
+async function childlessSuite(browser) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("console", (m) => { if (m.type() === "error" && !/status of 401/.test(m.text())) errors.push("console: " + m.text().slice(0, 140)); });
+  page.on("pageerror", (e) => errors.push("page: " + e.message.slice(0, 140)));
+  await page.goto(BASE + "/portal/", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('input[placeholder="email@anda.id"]');
+  await page.click('.tab:has-text("Daftar")');
+  await page.fill('input[placeholder="email@anda.id"]', "qa-empty-" + Date.now() + "@example.com");
+  await page.fill('input[placeholder="Nama panggilan Anda"]', "QA Kosong");
+  await page.fill('input[type="password"]', "prototype");
+  await page.click('button:has-text("Daftar akun")');
+  await page.waitForSelector(".hello", { timeout: 30000 });
+  const home = await page.locator(".phone").innerText();
+  check("PORTAL: empty parent has no child data", /Belum ada data anak tertaut/.test(home) && !/24[–-]36 bln/.test(home));
+  await page.goto(BASE + "/portal/#/screening");
+  await page.waitForTimeout(2500);
+  const scr = await page.locator(".phone").innerText();
+  check("PORTAL: empty parent gets empty development page", /Belum ada data anak tertaut/.test(scr) && !/Dalam proses/.test(scr) && !/24[–-]36 bln/.test(scr), scr.replace(/\n+/g, " | ").slice(0, 130));
+  await page.goto(BASE + "/portal/#/growth");
+  await page.waitForTimeout(2500);
+  const gr = await page.locator(".phone").innerText();
+  const charts = await page.locator("svg.chart-svg").count();
+  check("PORTAL: empty parent gets empty growth chart", /Belum ada pengukuran/.test(gr) && charts === 0, charts + " charts");
+  check("PORTAL: empty parent page has no console errors", errors.length === 0, errors.slice(0, 2).join(" | "));
+  await ctx.close();
+}
+
 (async () => {
   const browser = await chromium.launch({ executablePath: EDGE, headless: true });
   try {
     await emrSuite(browser);
     await portalSuite(browser);
+    await childlessSuite(browser);
   } catch (e) {
     check("SUITE CRASH", false, e.message.slice(0, 300));
   } finally {

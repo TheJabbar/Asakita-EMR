@@ -192,7 +192,7 @@ function Home({ me }: any) {
   const k = (kids || [])[0];
   return <div>
     <div className="topbar"><div><h1 className="serif">Beranda</h1><div className="sub">Asakita Child Health Center</div></div><button className="icon-btn" onClick={() => (location.hash = "#/account")} aria-label="Akun">👤</button></div>
-    <div className="hello"><div className="avatar">👩</div><div><h2 className="serif">Halo, {me?.name?.split(" ")[0] || "Bunda"} 👋</h2><p>{k ? `Ringkasan ${k.full_name?.split(" ")[0]} hari ini.` : "Memuat data anak…"}</p></div></div>
+    <div className="hello"><div className="avatar">👩</div><div><h2 className="serif">Halo, {me?.name?.split(" ")[0] || "Bunda"} 👋</h2><p>{kids === null ? "Memuat data anak…" : k ? `Ringkasan ${k.full_name?.split(" ")[0]} hari ini.` : "Akun belum tertaut ke data anak."}</p></div></div>
     {!kids ? <div className="card"><div className="skel" style={{ width: "60%" }} /><div className="skel" style={{ marginTop: 8 }} /></div>
       : !k ? <div className="card"><b>Belum ada data anak tertaut.</b><p style={{ fontSize: 13, color: "#5f6d64" }}>Akun baru perlu ditautkan ke data anak oleh front office — hubungi klinik dengan membawa No. RM.</p></div>
       : <div className="card child-card tap" onClick={() => (location.hash = "#/child/" + k.id)}><div className="child-photo">👶</div><div style={{ flex: 1 }}><h3 style={{ margin: 0, fontSize: 16 }}>{k.full_name}</h3><p style={{ margin: "4px 0 0", color: "#6f7d75", fontSize: 12 }}>{ageID(k.dob)} • Lihat profil anak</p><span className="pill green">Pasien aktif</span></div><span style={{ fontSize: 22, color: "#275844" }}>›</span></div>}
@@ -362,17 +362,31 @@ function Tagihan({ route }: any) {
 
 function Screen({ route }: any) {
   const id = route.split("/")[2] || "";
-  const [d, setD] = useState<any[]>([]); const [kid, setKid] = useState(""); const [dnv, setDnv] = useState<any>(null);
+  const [d, setD] = useState<any[]>([]); const [kid, setKid] = useState(""); const [child, setChild] = useState<any>(null); const [ready, setReady] = useState(false);
+  const [dnv, setDnv] = useState<any>(null);
   const [ms, setMs] = useState<any[]>([]); const [progs, setProgs] = useState<any[]>([]);
   useEffect(() => {
-    if (!id) api.get("/api/portal/children").then((r) => { const k = r.data[0]; if (k) { setKid(k.id); api.get(`/api/portal/screening/${k.id}`).then((x) => setD(x.data)); api.get(`/api/portal/denver/${k.id}`).then(setDnv).catch(() => {}); api.get(`/api/portal/milestones?childId=${k.id}`).then((x) => setMs(x.data)).catch(() => {}); api.get(`/api/portal/programs?childId=${k.id}`).then((x) => setProgs(x.data)).catch(() => {}); } });
-    else { api.get(`/api/portal/screening/${id}`).then((r) => setD(r.data)).catch(() => {}); api.get(`/api/portal/denver/${id}`).then(setDnv).catch(() => {}); api.get(`/api/portal/milestones?childId=${id}`).then((r) => setMs(r.data)).catch(() => {}); api.get(`/api/portal/programs?childId=${id}`).then((r) => setProgs(r.data)).catch(() => {}); }
+    const load = (cid: string) => {
+      setKid(cid);
+      api.get(`/api/portal/screening/${cid}`).then((x) => setD(x.data)).catch(() => {});
+      api.get(`/api/portal/denver/${cid}`).then(setDnv).catch(() => {});
+      api.get(`/api/portal/milestones?childId=${cid}`).then((x) => setMs(x.data)).catch(() => {});
+      api.get(`/api/portal/programs?childId=${cid}`).then((x) => setProgs(x.data)).catch(() => {});
+    };
+    // ponytail: a parent with no linked child must see an empty state — never a made-up age or status
+    api.get("/api/portal/children").then((r) => {
+      const k = id ? r.data.find((x: any) => x.id === id) : r.data[0];
+      if (k) { setChild(k); load(k.id); }
+      setReady(true);
+    }).catch(() => setReady(true));
   }, [id]);
   const DOMS: [string, string, string, string][] = [["motorik_kasar", "Motorik kasar", "🏃", "Berjalan, berlari, melompat"], ["motorik_halus", "Motorik halus", "✍️", "Menggenggam, menyusun, menjumput"], ["bahasa", "Bahasa", "💬", "Memahami & ekspresi kata"], ["sosial_emosional", "Sosial & emosional", "🤝", "Interaksi, bermain, mandiri"], ["kognitif", "Kognitif", "🧠", "Fokus & pemecahan masalah"]];
   return <div>
     <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Perkembangan anak</h1><p>Skrining 5 domain, checklist Denver, milestone, program terapi</p></div></div>
-    <div className="card" style={{ background: "#fff4de" }}><b>Perkembangan {ageID("") || "24–36 bln"}</b><p style={{ margin: "6px 0 0", color: "#5f6d64", fontSize: 12.5 }}>Detail klinis mentah hanya di EMR internal — ini ringkasan aman untuk ortu.</p></div>
-    {DOMS.map(([k, l, e, s]) => { const f = d.find((x) => x.domain === k); const ok = (f?.result || "").toLowerCase().includes("sesuai") || (f?.result || "").toLowerCase().includes("capai"); return <div className="scr" key={k}><div className="ico">{e}</div><div style={{ flex: 1 }}><h4 style={{ margin: 0, fontSize: 14 }}>{l}</h4><p style={{ fontSize: 12, color: "#6f7d75", margin: "3px 0 0" }}>{f?.note || s}</p></div><span className={"pill " + (ok ? "green" : "orange")}>{f?.result || "Dalam proses"}</span></div>; })}
+    {!ready ? null : !kid ? <div className="card"><b>Belum ada data anak tertaut.</b><p style={{ fontSize: 13, color: "#5f6d64" }}>Akun baru perlu ditautkan ke data anak oleh front office — hubungi klinik dengan membawa No. RM.</p></div> : <>
+    <div className="card" style={{ background: "#fff4de" }}><b>Perkembangan{ageID(child?.dob) ? " · usia " + ageID(child.dob) : ""}</b><p style={{ margin: "6px 0 0", color: "#5f6d64", fontSize: 12.5 }}>Detail klinis mentah hanya di EMR internal — ini ringkasan aman untuk ortu.</p></div>
+    {DOMS.map(([k, l, e, s]) => { const f = d.find((x) => x.domain === k); const ok = (f?.result || "").toLowerCase().includes("sesuai") || (f?.result || "").toLowerCase().includes("capai"); return <div className="scr" key={k}><div className="ico">{e}</div><div style={{ flex: 1 }}><h4 style={{ margin: 0, fontSize: 14 }}>{l}</h4><p style={{ fontSize: 12, color: "#6f7d75", margin: "3px 0 0" }}>{f?.note || s}</p></div>{f ? <span className={"pill " + (ok ? "green" : "orange")}>{f.result}</span> : <span className="pill">Belum diskrining</span>}</div>; })}
+    </>}
     {dnv && <div className="card"><h4 style={{ margin: "0 0 4px" }}>Checklist Denver</h4>
       <p style={{ fontSize: 12.5, color: "#6f7d75", margin: "0 0 10px" }}>Rentang usia {dnv.band} · {dnv.checked}/{dnv.total} item diperiksa · kemajuan {dnv.progress}%</p>
       {dnv.domains.map((x: any) => <div key={x.label} style={{ marginBottom: 9 }}>
@@ -397,7 +411,7 @@ function Screen({ route }: any) {
         <div style={{ fontSize: 11.5, color: "#6f7d75", marginTop: 4 }}>{p.sessions} sesi · {p.progress}% · {p.status}</div>
       </div>)}
     </div>}
-    <button className="btn btn-p" onClick={() => (location.hash = "#/therapy/" + (id || kid))}>Lihat catatan terapi →</button>
+    {kid && <button className="btn btn-p" onClick={() => (location.hash = "#/therapy/" + kid)}>Lihat catatan terapi →</button>}
   </div>;
 }
 
