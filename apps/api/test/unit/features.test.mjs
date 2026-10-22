@@ -93,6 +93,18 @@ describe("unit: home program (resep) + tracking", () => {
     assert.equal(p.data[0].items.length, 1);
     assert.equal(p.data[0].items[0].doneToday, false);
   });
+  it("deletes a session together with its program (owner/dokter only)", async () => {
+    const typeId = (await (await app.request("/api/therapy-types", { headers: H(staff) })).json()).data[0].id;
+    const s = await (await app.request("/api/therapy-sessions", { method: "POST", headers: H(staff), body: JSON.stringify({ child_id: childId, type_id: typeId, target: "hapus", home_program: { title: "Resep uji", items: [{ label: "item uji" }] } }) })).json();
+    const programs = await (await app.request(`/api/home-programs?childId=${childId}`, { headers: H(staff) })).json();
+    const prog = programs.data.find((p) => p.title === "Resep uji");
+    assert.ok(prog, "program attached to the session");
+    const del = await app.request(`/api/therapy-sessions/${s.id}`, { method: "DELETE", headers: H(staff) });
+    assert.equal(del.status, 200);
+    const after = await (await app.request(`/api/home-programs?childId=${childId}`, { headers: H(staff) })).json();
+    assert.ok(!after.data.some((p) => p.title === "Resep uji"), "program removed with the session");
+    assert.equal((await app.request(`/api/therapy-sessions/${s.id}`, { method: "DELETE", headers: H(staff) })).status, 404);
+  });
   it("parent toggles an item for today (own child only)", async () => {
     const mine = await (await app.request(`/api/portal/home-programs?childId=${ownChild.id}`, { headers: H(parent) })).json();
     itemId = mine.data[0].items[0].id;

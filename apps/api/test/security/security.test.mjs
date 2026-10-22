@@ -144,5 +144,12 @@ describe("security gate", () => {
       const txt = await (await app.request(u, { headers: H(par.cookie) })).text();
       assert.ok(!/"subjective"|"objective"/.test(txt), u);
     }
+    // deleting a therapy session is owner/dokter only
+    const ter2 = await login("terapis@asakita.demo", "prototype", NL);
+    const typeId = (await (await app.request("/api/therapy-types", { headers: H(dok.cookie) })).json()).data[0].id;
+    const sess = await (await app.request("/api/therapy-sessions", { method: "POST", headers: H(dok.cookie), body: JSON.stringify({ child_id: mine.id, type_id: typeId, target: "QA" }) })).json();
+    assert.equal((await app.request(`/api/therapy-sessions/${sess.id}`, { method: "DELETE", headers: H(ter2.cookie) })).status, 403);
+    assert.equal((await app.request(`/api/therapy-sessions/${sess.id}`, { method: "DELETE", headers: H(par.cookie) })).status, 403);
+    assert.equal((await app.request(`/api/therapy-sessions/${sess.id}`, { method: "DELETE", headers: H(dok.cookie) })).status, 200);
   });
 });

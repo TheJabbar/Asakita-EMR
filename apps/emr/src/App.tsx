@@ -219,7 +219,7 @@ export default function App() {
     </nav>
     <main className="main">
       <Topbar me={me} />
-      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy /> : R.startsWith("/progress") ? <Progress /> : R.startsWith("/denver") ? <Denver /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
+      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress /> : R.startsWith("/denver") ? <Denver /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
       <div className="footer">Asakita EMR — {new Date().getFullYear()}</div>
     </main>
   </div>;
@@ -543,7 +543,7 @@ function Soap({ route }: any) {
 }
 
 const ACTS = ["Imitasi suara", "Kontak mata", "Instruksi sederhana", "Kosakata dasar", "Motorik halus"];
-function Therapy() {
+function Therapy({ me }: any) {
   const [list, setList] = useState<any[]>([]); const [types, setTypes] = useState<any[]>([]); const [kids, setKids] = useState<any[]>([]);
   const [progs, setProgs] = useState<any[]>([]);
   const [f, setF] = useState<any>({ date: new Date().toISOString().slice(0, 10), acts: [] as string[], recipe: "", recipe_title: "Latihan di rumah" });
@@ -575,7 +575,7 @@ function Therapy() {
         <small className="sub" style={{ margin: 0 }}>{recipeItems.length ? recipeItems.length + " item akan dikirim ke orang tua untuk dicatat harian." : "Kosongkan bila tidak ada resep."}</small>
       </div>
       <button className="btn btn-p" style={{ marginTop: 16 }} onClick={save}>Simpan progress</button></div>
-      <div><h3 style={{ margin: "4px 0 10px" }}>20 sesi terakhir{f.child_id ? " — " + (kids.find((k: any) => k.id === f.child_id)?.full_name || "") : ""}</h3><div className="tl">{list.slice(0, 20).map((s: any) => <div className="it" key={s.id}><b>{(s.date || "").slice(5)}</b><div><b>{s.type_name}</b>{!f.child_id && <small style={{ color: "#6d7c74" }}> • {s.child_name || ""}</small>}<br /><small style={{ color: "#6d7c74" }}>{s.target || "—"}{s.home_recommendation ? " • PR: " + s.home_recommendation : ""}</small></div><span className="pill">{s.response || "—"}</span></div>)}{!list.length && <div className="empty"><div className="big">⬢</div>Belum ada sesi.</div>}</div>
+      <div><h3 style={{ margin: "4px 0 10px" }}>20 sesi terakhir{f.child_id ? " — " + (kids.find((k: any) => k.id === f.child_id)?.full_name || "") : ""}</h3><div className="tl">{list.slice(0, 20).map((s: any) => <div className="it" key={s.id}><b>{(s.date || "").slice(5)}</b><div><b>{s.type_name}</b>{!f.child_id && <small style={{ color: "#6d7c74" }}> • {s.child_name || ""}</small>}<br /><small style={{ color: "#6d7c74" }}>{s.target || "—"}{s.home_recommendation ? " • PR: " + s.home_recommendation : ""}</small></div><span className="pill">{s.response || "—"}</span>{["owner", "dokter"].includes(me?.role) && <button className="btn btn-s" title="Hapus sesi" onClick={() => { if (confirm("Hapus sesi terapi ini beserta resepnya?")) api.del(`/api/therapy-sessions/${s.id}`).then(() => load(f.child_id)).catch((e) => alert("Gagal (" + e.message + ")")); }}>🗑</button>}</div>)}{!list.length && <div className="empty"><div className="big">⬢</div>Belum ada sesi.</div>}</div>
         {f.child_id && <><h3 style={{ margin: "18px 0 8px" }}>Resep latihan di rumah</h3>
           {progs.length ? progs.map((p: any) => <div className="card" key={p.id} style={{ padding: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><b>{p.title}</b><small style={{ color: "#6d7c74" }}>{(p.created_at || "").slice(0, 10)}</small></div>

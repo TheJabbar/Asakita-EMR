@@ -327,7 +327,19 @@ app.post("/api/therapy-sessions", need("owner", "dokter", "terapis"), bodyLimit,
   return c.json({ id }, 201);
 });
 app.get("/api/growth", need(...STAFF), (c) => c.json({ data: rows("SELECT * FROM growth_records WHERE child_id=? ORDER BY date", c.req.query("childId") || "-") }));
-app.post("/api/growth", need("owner", "dokter", "terapis"), bodyLimit, async (c) => {
+// ponytail: a session created by mistake can be removed (owner/dokter only, audited, with its program)
+app.delete("/api/therapy-sessions/:id", need("owner", "dokter"), (c) => {
+  const s = row("SELECT * FROM therapy_sessions WHERE id=?", c.req.param("id"));
+  if (!s) return err(c, "not_found", "sesi terapi tidak ada", 404);
+  const prog = row("SELECT id FROM home_programs WHERE session_id=?", s.id);
+  if (prog) {
+    run("DELETE FROM home_program_items WHERE program_id=?", prog.id);
+    run("DELETE FROM home_programs WHERE id=?", prog.id);
+  }
+  run("DELETE FROM therapy_sessions WHERE id=?", s.id);
+  audit(c.get("user").id, "therapy_delete", "session", s.id, { child_id: s.child_id });
+  return c.json({ ok: true });
+});app.post("/api/growth", need("owner", "dokter", "terapis"), bodyLimit, async (c) => {
   const b = await c.req.json(); const id = uid("g");
   run("INSERT INTO growth_records(id,child_id,date,weight_kg,height_cm,head_cm,recorded_by) VALUES(?,?,?,?,?,?,?)",
     id, b.child_id, b.date || new Date().toISOString().slice(0, 10), b.weight_kg ?? null, b.height_cm ?? null, b.head_cm ?? null, c.get("user").id);

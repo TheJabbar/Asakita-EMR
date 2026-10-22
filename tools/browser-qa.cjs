@@ -29,10 +29,16 @@ function watch(page, bucket) {
   page.on("pageerror", (e) => bucket.push("pageerror: " + e.message));
   // the pre-login session probe answers 401 by design → not a defect
   page.on("console", (m) => { if (m.type() === "error" && !/status of 401/.test(m.text())) bucket.push("console: " + m.text().slice(0, 160)); });
-  page.on("requestfailed", (r) => bucket.push("reqfail: " + r.url().slice(0, 120) + " " + (r.failure()?.errorText || "")));
+  page.on("requestfailed", (r) => {
+    const why = r.failure()?.errorText || "";
+    // ERR_ABORTED = the browser cancelled the request (navigation away) — e.g. the Google button iframe
+    if (/ERR_ABORTED/.test(why)) return;
+    bucket.push("reqfail: " + r.url().slice(0, 120) + " " + why);
+  });
   // ponytail: catch bad API responses too (the app swallows them into alerts)
   page.on("response", async (r) => {
     const u = r.url();
+    if (process.env.DEBUG) console.log("    → " + r.status() + " " + u.replace(/^https?:\/\/[^/]+/, "").slice(0, 70));
     if (r.status() >= 400 && u.includes("/api/") && !u.includes("/api/me")) bucket.push(`http ${r.status()} ${u.replace(/^https?:\/\/[^/]+/, "").slice(0, 80)}`);
   });
 }
