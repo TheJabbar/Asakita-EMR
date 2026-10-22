@@ -667,10 +667,6 @@ function Progress({ initial = "kurva" }: any) {
           <tbody>{[...pts].reverse().map((p: any) => <tr key={p.id}><td>{p.date}</td><td>{p.ageMonths} bl</td><td><b>{p.value} {curve.unit}</b></td><td>{p.z ?? "—"}</td><td><span className={"pill " + (p.band === "normal" ? "ok" : p.band === "unknown" ? "" : "warn")}>{BAND_LABEL[p.band] || p.band}</span></td></tr>)}</tbody></table>}
       </div>
       <div>
-        <div className="card"><h3 style={{ marginTop: 0 }}>Checklist Denver</h3>
-          <p className="sub">Centang milestone perkembangan anak per usia (4 domain).</p>
-          <button className="btn btn-s" onClick={() => setView("denver")}>Buka checklist →</button>
-        </div>
         <div className="card"><h3 style={{ marginTop: 0 }}>Milestone</h3>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{m.map((x: any) => <button key={x.key} className={"tab" + (x.status === "achieved" ? " on" : "")} title={x.status} onClick={() => { const nx = x.status === "achieved" ? "in_progress" : x.status === "in_progress" ? "concern" : "achieved"; api.put("/api/milestones", { child_id: cid, key: x.key, label: x.label, status: nx }).then(() => load(cid)); }}>{x.label} • {x.status === "achieved" ? "✓" : x.status}</button>)}{!m.length && <span className="sub">Belum ada milestone.</span>}</div>
           <button className="btn btn-s" style={{ marginTop: 10 }} onClick={() => { const label = prompt("Milestone baru (cth. Berjalan mandiri)?"); if (!label) return; const key = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40) || ("m" + Date.now()); api.put("/api/milestones", { child_id: cid, key, label, status: "in_progress" }).then(() => load(cid)); }}>+ Tambah milestone</button>
