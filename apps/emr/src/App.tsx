@@ -1,14 +1,17 @@
 // ponytail: one-file EMR — hash routes, plain fetch, no router lib; CSS-injected design system (no new deps)
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { growthGeometry, formatIDR, BAND_LABEL } from "@asakita/shared";
 // ponytail: same-origin default (Fly serves API+UI on one host); dev uses vite proxy below
 const API = (import.meta as any).env?.VITE_API_URL || "";
+// ponytail: tag every request with the app so the API picks the right session cookie (EMR + portal share one origin in prod)
+const H = { "X-Asakita-App": "emr" };
 const j = (r: Response) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); };
 const api = {
-  get: (p: string) => fetch(API + p, { credentials: "include" }).then(j),
-  post: (p: string, b: any) => fetch(API + p, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
-  put: (p: string, b: any) => fetch(API + p, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
-  patch: (p: string, b: any) => fetch(API + p, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
-  del: (p: string) => fetch(API + p, { method: "DELETE", credentials: "include" }).then(j),
+  get: (p: string) => fetch(API + p, { credentials: "include", headers: H }).then(j),
+  post: (p: string, b: any) => fetch(API + p, { method: "POST", credentials: "include", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
+  put: (p: string, b: any) => fetch(API + p, { method: "PUT", credentials: "include", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
+  patch: (p: string, b: any) => fetch(API + p, { method: "PATCH", credentials: "include", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
+  del: (p: string) => fetch(API + p, { method: "DELETE", credentials: "include", headers: H }).then(j),
 };
 // ponytail: client helpers only — server remains source of truth for ages/statuses
 const initials = (n: string) => (n || "?").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -30,125 +33,161 @@ const pill = (s: string) => {
 const NEXT: Record<string, string[]> = { scheduled: ["confirmed", "cancelled"], confirmed: ["waiting", "in_progress", "cancelled"], waiting: ["in_progress", "cancelled"], in_progress: ["done", "cancelled"], done: [], cancelled: ["scheduled"] };
 
 const css = `
-:root{--bg:#f4eee1;--paper:#fffdf7;--card:#ffffff;--ink:#1c2f29;--muted:#6d7c74;--line:#e7dac4;--sage:#2c5545;--sage2:#477a61;--sage-soft:#e2efe2;--gold:#c9952f;--gold-soft:#fbf0d3;--peach:#ef9d7c;--danger:#b6493f;--ok:#2e7d4f;--radius:20px;--sh:0 14px 34px rgba(44,85,69,.10);--sh-lg:0 24px 60px rgba(44,85,69,.16)}
-*{box-sizing:border-box}html{scroll-behavior:smooth}
-body{margin:0;font-family:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
-body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;background:radial-gradient(900px 400px at 10% 0%,#f7d9a522,transparent),radial-gradient(800px 380px at 95% 15%,#477a6122,transparent),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .04 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E")}
-h1,h2,.serif{font-family:Fraunces,Georgia,"Times New Roman",serif;letter-spacing:-.02em}
-button,input,select,textarea{font:inherit}
-:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:8px}
-@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-@keyframes pop{0%{transform:scale(.96);opacity:0}100%{transform:none;opacity:1}}
-@keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+/* ---- design tokens (modern refresh, same sage + gold identity) ---- */
+:root{--bg:#f4f6f5;--paper:#fff;--card:#fff;--ink:#132019;--muted:#5f6f68;--line:#e2e9e5;--line2:#eef2f0;
+ --sage:#1d6b4f;--sage2:#2c8a63;--sage-soft:#e6f3ec;--sage-ink:#123f30;--gold:#b8862f;--gold-soft:#fbf1dc;
+ --danger:#b6493f;--danger-soft:#fbe6e4;--ok:#1d6b4f;--warn:#8a5a12;--warn-soft:#fdf1d6;
+ --radius:16px;--radius-s:12px;--sh:0 1px 2px rgba(16,40,30,.05),0 8px 20px rgba(16,40,30,.05);--sh-lg:0 2px 6px rgba(16,40,30,.06),0 24px 48px rgba(16,40,30,.10)}
+*{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;font-family:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14.5px;line-height:1.55;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,.serif{font-family:Fraunces,Georgia,"Times New Roman",serif;letter-spacing:-.015em;font-weight:600}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--sage2);outline-offset:2px;border-radius:8px}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.985);opacity:0}100%{transform:none;opacity:1}}
+@keyframes shake{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 /* ---- login ---- */
-.lg{min-height:100vh;display:grid;grid-template-columns:460px 1fr}
-.lg-brand{background:linear-gradient(165deg,#24473a 0%,#16291f 70%),radial-gradient(400px 300px at 80% 10%,#c9952f33,transparent);color:#f3efe2;padding:52px 44px;position:relative;overflow:hidden;display:flex;flex-direction:column}
-.lg-brand:before{content:"";position:absolute;width:340px;height:340px;border-radius:50%;background:#ffffff0d;top:-120px;right:-120px}
-.lg-brand:after{content:"";position:absolute;width:220px;height:220px;border-radius:46% 54% 60% 40%;background:#c9952f26;bottom:-70px;left:-60px;transform:rotate(-18deg)}
-.lg-mark{width:92px;height:92px;border:2.5px solid #f3efe2;border-radius:50%;display:grid;place-items:center;font-size:42px;margin:8px auto 14px;position:relative;z-index:1;background:#ffffff12}
-.lg-title{text-align:center;letter-spacing:11px;font-size:38px;margin:0;z-index:1}
-.lg-sub{text-align:center;opacity:.8;font-size:12.5px;letter-spacing:2.5px;text-transform:uppercase;z-index:1}
-.lg-tag{background:#f7e3b022;border:1px solid #f7e3b055;border-radius:18px;padding:16px 18px;text-align:center;margin:26px 0;font-size:14px;line-height:1.5;z-index:1}
-.lg-feats{display:grid;gap:14px;margin-top:8px;z-index:1}.lg-feats>div{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:start;background:#ffffff0e;border:1px solid #ffffff18;border-radius:16px;padding:12px 14px}
-.lg-feats i{width:38px;height:38px;border-radius:12px;background:#f7e3b022;display:grid;place-items:center;font-style:normal;font-size:18px}
-.lg-feats b{font-size:13.5px}.lg-feats p{margin:3px 0 0;font-size:12.5px;opacity:.75;line-height:1.45}
-.lg-quote{margin-top:auto;padding-top:28px;text-align:center;font-family:Fraunces,Georgia,serif;font-style:italic;font-size:19px;opacity:.92;z-index:1}
+.lg{min-height:100vh;display:grid;grid-template-columns:440px 1fr}
+.lg-brand{background:linear-gradient(170deg,#1a4b39,#0f2f24 72%),radial-gradient(420px 300px at 85% 8%,#b8862f2e,transparent);color:#f2f0e6;padding:52px 44px;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.lg-brand:before{content:"";position:absolute;width:320px;height:320px;border-radius:50%;background:#ffffff0d;top:-120px;right:-120px}
+.lg-brand:after{content:"";position:absolute;width:200px;height:200px;border-radius:48% 52% 60% 40%;background:#b8862f24;bottom:-70px;left:-60px;transform:rotate(-18deg)}
+.lg-mark{width:84px;height:84px;border:2px solid #f2f0e6;border-radius:50%;display:grid;place-items:center;font-size:38px;margin:8px auto 14px;position:relative;z-index:1;background:#ffffff10}
+.lg-title{text-align:center;letter-spacing:10px;font-size:36px;margin:0;z-index:1}
+.lg-sub{text-align:center;opacity:.78;font-size:12px;letter-spacing:2.2px;text-transform:uppercase;z-index:1}
+.lg-tag{background:#ffffff10;border:1px solid #ffffff1f;border-radius:14px;padding:14px 16px;text-align:center;margin:24px 0;font-size:13.5px;line-height:1.5;z-index:1}
+.lg-feats{display:grid;gap:10px;margin-top:8px;z-index:1}.lg-feats>div{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:start;background:#ffffff0a;border:1px solid #ffffff14;border-radius:14px;padding:11px 13px}
+.lg-feats i{width:34px;height:34px;border-radius:10px;background:#ffffff12;display:grid;place-items:center;font-style:normal;font-size:17px}
+.lg-feats b{font-size:13px}.lg-feats p{margin:2px 0 0;font-size:12px;opacity:.72;line-height:1.45}
+.lg-quote{margin-top:auto;padding-top:26px;text-align:center;font-family:Fraunces,Georgia,serif;font-style:italic;font-size:18px;opacity:.9;z-index:1}
 .lg-hero{display:flex;align-items:center;justify-content:center;padding:48px 32px;position:relative}
-.lg-date{position:absolute;top:22px;right:34px;font-size:13px;color:var(--muted)}
-.lg-card{width:min(480px,94vw);background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(12px);border:1px solid #fff;border-radius:28px;padding:38px;box-shadow:var(--sh-lg);animation:pop .45s ease}
-.lg-card h1{margin:0;font-size:36px}.lg-card h2{margin:4px 0 6px;color:var(--sage);font-size:21px;font-weight:600}
+.lg-date{position:absolute;top:22px;right:34px;font-size:12.5px;color:var(--muted)}
+.lg-card{width:min(460px,94vw);background:var(--card);border:1px solid var(--line);border-radius:24px;padding:34px;box-shadow:var(--sh-lg);animation:pop .4s ease}
+.lg-card h1{margin:0;font-size:32px}.lg-card h2{margin:2px 0 6px;color:var(--sage);font-size:19px;font-weight:600}
 .lg-card>p{color:var(--muted);font-size:13.5px;line-height:1.55}
-.lbl{display:block;font-weight:700;font-size:11.5px;letter-spacing:.8px;text-transform:uppercase;color:#43544d;margin:16px 0 7px}
-.inp{height:50px;border:1.5px solid #d8d2c2;border-radius:14px;padding:0 15px;width:100%;font-size:14.5px;background:#fff;transition:.18s}
-.inp:focus{border-color:var(--sage2);box-shadow:0 0 0 4px #477a6122;outline:none}
-textarea.inp{height:auto;min-height:96px;padding:12px 14px;resize:vertical;line-height:1.55}
-select.inp{appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%232c5545' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 14px center}
-.btn{border:0;border-radius:14px;padding:13px 18px;font-weight:800;cursor:pointer;transition:.18s;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:14px}
-.btn:hover{transform:translateY(-1px);filter:brightness(1.02)}.btn:active{transform:none}
-.btn-p{background:linear-gradient(135deg,var(--sage2),var(--sage));color:#fff;box-shadow:0 12px 24px #2c554533;width:100%}
-.btn-g{background:#fff;border:1.5px solid #c9cfc4;color:var(--ink);width:100%}
-.btn-s{width:auto;padding:9px 14px;font-size:13px;background:#fff;border:1.5px solid var(--line)}
-.btn-s:hover{border-color:var(--sage2)}
-.btn:disabled{opacity:.6;cursor:wait;transform:none}
-.lg-err{background:#fde7e4;border:1px solid #f3b8b1;color:#8c2f28;border-radius:12px;padding:11px 14px;font-size:13px;margin-top:14px;animation:shake .4s}
-.lg-ok{background:var(--sage-soft);border:1px solid #bcd8bf;color:#245c3d;border-radius:12px;padding:11px 14px;font-size:13px;margin-top:14px}
+.lbl{display:block;font-weight:700;font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:#46564f;margin:15px 0 6px}
+.inp{height:44px;border:1px solid #d9e1dc;border-radius:var(--radius-s);padding:0 13px;width:100%;font-size:14px;background:#fff;transition:.15s}
+.inp:hover{border-color:#c6d3cb}
+.inp:focus{border-color:var(--sage2);box-shadow:0 0 0 3px #2c8a6322;outline:none}
+textarea.inp{height:auto;min-height:90px;padding:11px 13px;resize:vertical;line-height:1.55}
+select.inp{appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231d6b4f' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 12px center;padding-right:32px}
+.btn{border:0;border-radius:var(--radius-s);padding:11px 16px;font-weight:700;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:13.5px;background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn:hover{transform:translateY(-1px);border-color:#c6d3cb}.btn:active{transform:none}
+.btn-p{background:var(--sage);color:#fff;border-color:var(--sage);width:100%;box-shadow:0 6px 16px #1d6b4f26}
+.btn-p:hover{background:var(--sage2);border-color:var(--sage2)}
+.btn-g{background:#fff;border:1px solid var(--line);width:100%}
+.btn-s{width:auto;padding:8px 12px;font-size:12.5px;background:#fff;border:1px solid var(--line)}
+.btn-s:hover{border-color:var(--sage2);color:var(--sage)}
+.btn:disabled{opacity:.55;cursor:wait;transform:none}
+.lg-err{background:var(--danger-soft);border:1px solid #f0c4bf;color:#8c2f28;border-radius:var(--radius-s);padding:10px 13px;font-size:13px;margin-top:14px;animation:shake .35s}
+.lg-ok{background:var(--sage-soft);border:1px solid #bfe0cd;color:#155c3c;border-radius:var(--radius-s);padding:10px 13px;font-size:13px;margin-top:14px}
 .linklike{background:none;border:0;color:var(--sage);font-size:13px;cursor:pointer;text-decoration:underline;padding:0}
 /* ---- shell ---- */
-.shell{display:grid;grid-template-columns:272px 1fr;min-height:100vh}
-.side{background:linear-gradient(180deg,#2c5545,#1d3a2f);color:#eef3ec;padding:26px 16px;position:sticky;top:0;height:100vh;overflow:auto;display:flex;flex-direction:column;gap:4px}
-.side-head{display:flex;gap:12px;align-items:center;padding:4px 10px 18px;border-bottom:1px solid #ffffff1e;margin-bottom:14px}
-.side-mark{width:50px;height:50px;border:2px solid #f3efe2;border-radius:50%;display:grid;place-items:center;font-size:24px;flex:none;background:#ffffff14}
-.side-head strong{letter-spacing:4px;font-family:Fraunces,Georgia,serif;font-size:19px}
-.side-head small{opacity:.75;font-size:11px;letter-spacing:1px}
-.side-sec{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;opacity:.6;padding:12px 12px 5px}
-.side a{color:#eef3ec;display:flex;gap:12px;align-items:center;padding:11px 13px;border-radius:13px;text-decoration:none;font-size:14px;font-weight:600;transition:.15s;border:1px solid transparent}
-.side a:hover{background:#ffffff14}
-.side a.on{background:#fdf8ea;color:var(--sage);box-shadow:0 8px 20px #00000030}
-.side a .ic{width:24px;text-align:center}
-.side-foot{margin-top:auto;background:#ffffff12;border:1px solid #ffffff20;border-radius:16px;padding:14px;font-size:12px;line-height:1.5}
+.shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+.side{background:linear-gradient(180deg,#14432f,#0e2b21);color:#e9f0ea;padding:22px 14px;position:sticky;top:0;height:100vh;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.side-head{display:flex;gap:11px;align-items:center;padding:2px 8px 16px;border-bottom:1px solid #ffffff17;margin-bottom:12px}
+.side-mark{width:44px;height:44px;border:1.5px solid #e9f0ea;border-radius:50%;display:grid;place-items:center;font-size:21px;flex:none;background:#ffffff12}
+.side-head strong{letter-spacing:3.5px;font-family:Fraunces,Georgia,serif;font-size:18px}
+.side-head small{opacity:.7;font-size:10.5px;letter-spacing:.8px}
+.side-sec{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;opacity:.5;padding:12px 10px 4px}
+.side a{color:#e9f0ea;display:flex;gap:11px;align-items:center;padding:9px 12px;border-radius:10px;text-decoration:none;font-size:13.5px;font-weight:600;transition:.14s;border:1px solid transparent}
+.side a:hover{background:#ffffff12}
+.side a.on{background:#f2f6f1;color:var(--sage-ink);box-shadow:0 4px 14px #00000026}
+.side a .ic{width:22px;text-align:center;opacity:.9}
+.side-foot{margin-top:auto;background:#ffffff0d;border:1px solid #ffffff1a;border-radius:14px;padding:13px;font-size:12px;line-height:1.5}
 .main{padding:0;min-width:0}
-.topbar{position:sticky;top:0;z-index:20;display:flex;gap:14px;align-items:center;padding:14px 28px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-.search{position:relative;flex:1;max-width:560px}
-.search input{height:48px;border:0;border-radius:999px;background:#fff;padding:0 20px 0 46px;width:100%;box-shadow:0 8px 22px rgba(44,85,69,.08);font-size:14px}
-.search input:focus{outline:3px solid #c9952f66}
-.search .mag{position:absolute;left:17px;top:13px;opacity:.55}
-.search-drop{position:absolute;top:54px;left:0;right:0;background:#fff;border-radius:18px;box-shadow:var(--sh-lg);overflow:hidden;border:1px solid var(--line)}
-.search-drop a{display:flex;justify-content:space-between;padding:11px 16px;text-decoration:none;color:var(--ink);font-size:13.5px}
-.search-drop a:hover{background:#f7f3e7}
-.profile{margin-left:auto;display:flex;align-items:center;gap:11px;background:#fff;border-radius:999px;padding:6px 8px 6px 6px;box-shadow:0 8px 22px rgba(44,85,69,.08)}
-.avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#f0d49a,#bcd8bf);display:grid;place-items:center;font-weight:800;color:var(--sage);font-size:13px;flex:none}
-.page{padding:26px 30px 60px;max-width:1180px}
-.page>*{animation:rise .5s both}.page>*:nth-child(2){animation-delay:.05s}.page>*:nth-child(3){animation-delay:.1s}.page>*:nth-child(4){animation-delay:.15s}
-.page h2{font-size:32px;margin:0}.sub{color:var(--muted);margin:4px 0 20px;font-size:14px}
-.grid{display:grid;gap:16px}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.two{grid-template-columns:1.25fr .9fr}.three{grid-template-columns:repeat(3,minmax(0,1fr))}
-.card{background:var(--card);border:1px solid #fff;border-radius:var(--radius);padding:20px;box-shadow:var(--sh);transition:.18s}
-.card.hover:hover{transform:translateY(-3px);box-shadow:var(--sh-lg)}
+.topbar{position:sticky;top:0;z-index:20;display:flex;gap:14px;align-items:center;padding:12px 26px;background:#f4f6f5e6;backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.search{position:relative;flex:1;max-width:520px}
+.search input{height:42px;border:1px solid var(--line);border-radius:999px;background:#fff;padding:0 18px 0 42px;width:100%;font-size:13.5px}
+.search input:focus{outline:2px solid var(--sage2);outline-offset:1px;border-color:var(--sage2)}
+.search .mag{position:absolute;left:16px;top:12px;opacity:.5}
+.search-drop{position:absolute;top:50px;left:0;right:0;background:#fff;border-radius:14px;box-shadow:var(--sh-lg);overflow:hidden;border:1px solid var(--line);z-index:30}
+.search-drop a{display:flex;justify-content:space-between;padding:10px 14px;text-decoration:none;color:var(--ink);font-size:13px}
+.search-drop a:hover{background:#f4f7f5}
+.profile{margin-left:auto;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 5px}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#d8ecdf,#f6e2bd);display:grid;place-items:center;font-weight:800;color:var(--sage);font-size:12px;flex:none}
+.page{padding:22px 28px 56px;max-width:1180px}
+.page>*{animation:rise .4s both}.page>*:nth-child(2){animation-delay:.04s}.page>*:nth-child(3){animation-delay:.08s}.page>*:nth-child(4){animation-delay:.12s}
+.page h2{font-size:27px;margin:0}.sub{color:var(--muted);margin:3px 0 18px;font-size:13.5px}
+.grid{display:grid;gap:14px}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.two{grid-template-columns:1.25fr .9fr}.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--sh);transition:.16s}
+.card.hover:hover{transform:translateY(-2px);box-shadow:var(--sh-lg);border-color:#cfdad3}
 .stat{display:flex;justify-content:space-between;gap:10px;align-items:start}
-.stat small{color:var(--muted);font-weight:700;font-size:11.5px;letter-spacing:.6px;text-transform:uppercase}
-.stat .num{font-size:34px;font-weight:800;margin:6px 0 8px;font-family:Fraunces,Georgia,serif}
-.stat .emo{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;font-size:22px;background:var(--sage-soft)}
-.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:800;background:#edf2ec;color:#3c5a4d;border:1px solid #d3e0d3}
-.pill.ok{background:#e2f3e5;color:#256b41;border-color:#bfe0c5}
-.pill.warn{background:#fdf0d2;color:#8a5a12;border-color:#f3d68f}
-.pill.bad{background:#fbe3e1;color:#a33c33;border-color:#f0b9b4}
-.tl{display:grid;gap:10px}.tl .it{display:grid;grid-template-columns:56px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:15px;background:#faf7ee;border:1px solid #f0e7d2;transition:.15s;text-decoration:none;color:inherit}
-.tl .it:hover{background:#fff;border-color:var(--gold);transform:translateX(3px)}
-.tl .it b{font-size:14px}
-.bars{display:flex;align-items:end;gap:10px;height:150px;padding-top:10px}
-.bar{flex:1;border-radius:9px 9px 5px 5px;background:linear-gradient(180deg,var(--sage2),var(--sage));position:relative;min-height:12px;transition:.2s}
-.bar:hover{filter:brightness(1.1)}.bar span{position:absolute;bottom:-22px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted);font-weight:700}
-.bar.alt{background:linear-gradient(180deg,#e8bd63,#c9952f)}
+.stat small{color:var(--muted);font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase}
+.stat .num{font-size:30px;font-weight:700;margin:4px 0 6px;font-family:Fraunces,Georgia,serif;letter-spacing:-.02em}
+.stat .emo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:20px;background:var(--sage-soft)}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;background:#eef2f0;color:#3c5a4d;border:1px solid #dbe4df;white-space:nowrap}
+.pill.ok{background:#e4f4ea;color:#15603f;border-color:#bfe0c9}
+.pill.warn{background:var(--warn-soft);color:var(--warn);border-color:#f0d8a4}
+.pill.bad{background:var(--danger-soft);color:#9c332b;border-color:#f0bdb7}
+.tl{display:grid;gap:8px}.tl .it{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:11px 13px;border-radius:12px;background:#f7faf8;border:1px solid var(--line2);transition:.14s;text-decoration:none;color:inherit}
+.tl .it:hover{background:#fff;border-color:#cfdad3;transform:translateX(2px)}
+.tl .it b{font-size:13.5px}
+.bars{display:flex;align-items:end;gap:10px;height:140px;padding-top:10px}
+.bar{flex:1;border-radius:6px 6px 3px 3px;background:linear-gradient(180deg,var(--sage2),var(--sage));position:relative;min-height:10px;transition:.2s}
+.bar:hover{filter:brightness(1.08)}.bar span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted);font-weight:700}
+.bar.alt{background:linear-gradient(180deg,#e0b661,var(--gold))}
 table.tbl{width:100%;border-collapse:collapse}
-.tbl th,.tbl td{text-align:left;padding:12px 10px;border-bottom:1px solid #efe6d3;font-size:13.5px}
-.tbl th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.7px}
-.tbl tbody tr{transition:.12s}.tbl tbody tr:hover{background:#fbf6e9}
-.hero{background:linear-gradient(120deg,#2c5545,#3d6f58 60%,#c9952f 130%);color:#fff;border-radius:26px;padding:26px;display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center;box-shadow:var(--sh-lg);position:relative;overflow:hidden}
-.hero:before{content:"";position:absolute;width:280px;height:280px;border-radius:50%;background:#ffffff12;right:-90px;top:-90px;pointer-events:none}
-.hero-photo{width:84px;height:84px;border-radius:26px;background:#ffffff22;border:2px solid #ffffff66;display:grid;place-items:center;font-size:40px}
-.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
-.tab{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:9px 16px;font-weight:700;font-size:13px;cursor:pointer;transition:.15s}
+.tbl th,.tbl td{text-align:left;padding:10px 9px;border-bottom:1px solid var(--line2);font-size:13px}
+.tbl th{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;font-weight:700}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl tbody tr{transition:.12s}.tbl tbody tr:hover{background:#f7faf8}
+.hero{background:linear-gradient(120deg,#14432f,#20634a 62%,#b8862f 128%);color:#fff;border-radius:20px;padding:22px;display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;box-shadow:var(--sh-lg);position:relative;overflow:hidden}
+.hero:before{content:"";position:absolute;width:260px;height:260px;border-radius:50%;background:#ffffff10;right:-90px;top:-90px;pointer-events:none}
+.hero-photo{width:74px;height:74px;border-radius:22px;background:#ffffff1c;border:1.5px solid #ffffff4d;display:grid;place-items:center;font-size:36px}
+.tabs{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0}
+.tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font-weight:600;font-size:12.5px;cursor:pointer;transition:.14s;color:#43544d}
 .tab.on,.tab:hover{background:var(--sage);color:#fff;border-color:var(--sage)}
-.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.soap-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.soap-box{background:#faf7ee;border:1.5px solid #ece1cb;border-radius:16px;padding:14px}
-.soap-box:focus-within{border-color:var(--sage2);box-shadow:0 0 0 4px #477a611c}
-.soap-box label{font-weight:800;font-size:12px;letter-spacing:.5px}
-.char{font-size:11px;color:var(--muted);float:right}
-.checks{display:grid;gap:8px;margin:10px 0}.checks label{display:flex;gap:10px;align-items:center;background:#faf7ee;border:1px solid #ece1cb;padding:10px 12px;border-radius:12px;cursor:pointer;font-size:13.5px}
-.checks input{width:18px;height:18px;accent-color:var(--sage)}
-.growth-svg{width:100%;height:auto;background:#faf7ee;border-radius:16px;border:1px solid #eee2cb}
-.print-card{background:#fff;border-radius:22px;padding:28px;box-shadow:var(--sh);border-top:8px solid var(--sage);position:relative}
-.print-card:before{content:"";position:absolute;inset:10px;border:1px dashed var(--line);border-radius:14px;pointer-events:none}
-.skel{border-radius:12px;background:linear-gradient(90deg,#eee7d3 25%,#f8f2e2 50%,#eee7d3 75%);background-size:200% 100%;animation:sh 1.2s infinite;height:16px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.soap-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.soap-box{background:#f7faf8;border:1px solid var(--line2);border-radius:12px;padding:12px}
+.soap-box:focus-within{border-color:var(--sage2);box-shadow:0 0 0 3px #2c8a6318}
+.soap-box label{font-weight:700;font-size:11.5px;letter-spacing:.4px}
+.char{font-size:10.5px;color:var(--muted);float:right}
+.checks{display:grid;gap:6px;margin:8px 0}.checks label{display:flex;gap:9px;align-items:center;background:#f7faf8;border:1px solid var(--line2);padding:9px 11px;border-radius:10px;cursor:pointer;font-size:13px}
+.checks input{width:17px;height:17px;accent-color:var(--sage)}
+.growth-svg{width:100%;height:auto;background:#fbfdfc;border-radius:12px;border:1px solid var(--line2)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--muted);margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:3px;border-radius:2px;display:inline-block}
+.seg{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.seg-b{border:0;background:transparent;border-radius:999px;padding:6px 13px;font-size:12.5px;font-weight:600;cursor:pointer;color:#43544d}
+.seg-b.on{background:var(--sage);color:#fff}
+.print-card{background:#fff;border-radius:18px;padding:26px;box-shadow:var(--sh);border-top:6px solid var(--sage);position:relative}
+.print-card:before{content:"";position:absolute;inset:10px;border:1px dashed var(--line);border-radius:12px;pointer-events:none}
+.skel{border-radius:8px;background:linear-gradient(90deg,#e8edea 25%,#f4f8f6 50%,#e8edea 75%);background-size:200% 100%;animation:sh 1.2s infinite;height:14px}
 @keyframes sh{to{background-position:-200% 0}}
-.empty{text-align:center;padding:34px 16px;color:var(--muted)}.empty .big{font-size:44px}
-.chips{display:flex;gap:8px;flex-wrap:wrap}
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
-.toolbar .inp{width:auto;min-width:220px;height:44px}
-.footer{color:var(--muted);font-size:12px;text-align:center;padding:26px}
-@media(max-width:1020px){.lg{grid-template-columns:1fr}.lg-brand{display:none}.shell{grid-template-columns:1fr}.side{height:auto;position:static;flex-direction:column}.cards,.two,.three,.fgrid,.soap-grid{grid-template-columns:1fr}.page{padding:18px 16px 80px}.topbar{flex-wrap:wrap;padding:12px 14px}.hero{grid-template-columns:1fr;text-align:center;justify-items:center}}
-@media print{.side,.topbar,.no-print{display:none!important}.page{padding:0}.print-card{box-shadow:none}}
+.empty{text-align:center;padding:30px 14px;color:var(--muted)}.empty .big{font-size:40px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.toolbar .inp{width:auto;min-width:180px;height:38px}
+.footer{color:var(--muted);font-size:11.5px;text-align:center;padding:22px}
+/* ---- new components: denver, recipe, receipt ---- */
+.denver-item{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+.denver-text{font-size:13.5px;flex:1;min-width:220px}
+.denver-ops{display:flex;gap:5px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 11px;font-size:11.5px;font-weight:600;cursor:pointer;color:#43544d;transition:.14s}
+.chip:hover{border-color:var(--sage2)}
+.chip.on.pass{background:#e4f4ea;border-color:#8fcfaa;color:#15603f}
+.chip.on.not_yet{background:var(--warn-soft);border-color:#e6c684;color:var(--warn)}
+.chip.on.no_info{background:#eef2f0;border-color:#cdd8d2;color:#43544d}
+.recipe-box{margin-top:14px;padding:13px;background:#f7faf8;border:1px dashed #cbdad2;border-radius:12px}
+.recipe-box .lbl{margin-top:0}
+.recipe-box .inp{margin-bottom:8px}
+.receipt{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;margin-top:16px}
+.receipt-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--sage);padding-bottom:12px}
+.receipt-logo{letter-spacing:5px;font-weight:800;font-size:17px;color:var(--sage)}
+.receipt-head small{color:var(--muted);font-size:11.5px}
+.receipt-body{padding-top:12px;font-size:13px}
+.receipt-total{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line2);font-size:13.5px}
+.receipt-total b{font-variant-numeric:tabular-nums}
+@media(max-width:1020px){.lg{grid-template-columns:1fr}.lg-brand{display:none}.shell{grid-template-columns:1fr}.side{height:auto;position:static;flex-direction:column}.cards,.two,.three,.fgrid,.soap-grid{grid-template-columns:1fr}.page{padding:16px 14px 70px}.topbar{flex-wrap:wrap;padding:10px 12px}.hero{grid-template-columns:1fr;text-align:center;justify-items:center}}
+@media print{
+ .side,.topbar,.no-print{display:none!important}.page{padding:0}.print-card{box-shadow:none}
+ body.print-receipt *{visibility:hidden!important}
+ body.print-receipt #receipt-print,body.print-receipt #receipt-print *{visibility:visible!important}
+ #receipt-print{position:absolute;left:0;top:0;width:100%;border:0;box-shadow:none;padding:24px}
+}
 `;
 
 function useHash(): string {
@@ -173,13 +212,14 @@ export default function App() {
       {/* ponytail: no SOAP nav — notes only make sense inside a visit, opened from Data Pasien → Catatan (route stays for deep links) */}
       {nav("/therapy", "⬢", "Terapi")}
       {nav("/progress", "◭", "Tumbuh Kembang")}
+      {nav("/denver", "✓", "Checklist Denver")}
       {nav("/reports", "▤", "Laporan")}
       {["owner", "dokter"].includes(me?.role) ? nav("/users", "⚿", "Role & User", "Sistem") : null}
-      <div className="side-foot">Masuk sebagai <b>{me.role}</b><br /><button className="btn btn-s" style={{ marginTop: 10, width: "100%", color: "#fff", background: "#ffffff22", borderColor: "#ffffff33" }} onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include" }).then(() => setMe(null))}>Keluar</button></div>
+      <div className="side-foot">Masuk sebagai <b>{me.role}</b><br /><button className="btn btn-s" style={{ marginTop: 10, width: "100%", color: "#fff", background: "#ffffff22", borderColor: "#ffffff33" }} onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include", headers: H }).then(() => setMe(null))}>Keluar</button></div>
     </nav>
     <main className="main">
       <Topbar me={me} />
-      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy /> : R.startsWith("/progress") ? <Progress /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
+      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy /> : R.startsWith("/progress") ? <Progress /> : R.startsWith("/denver") ? <Denver /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
       <div className="footer">Asakita EMR — {new Date().getFullYear()}</div>
     </main>
   </div>;
@@ -220,7 +260,7 @@ function Login({ onOk }: any) {
   const go = (body: any, url: string) => { setBusy(true); setM(""); setOk(""); api.post(url, body).then((r) => { if (r.user && r.user.role === "parent") { setBusy(false); setM("Akun ini akun orang tua — buka portal di :5174, bukan EMR."); return; } onOk(r.user); }).catch(fail); };
   // ponytail: real Google button (GIS) only when backend has GOOGLE_CLIENT_ID; client id comes from /api/config (no rebuild)
   const [gcid, setGcid] = useState<string | null>(null);
-  useEffect(() => { fetch(API + "/api/config").then((r) => r.json()).then((c) => setGcid(c.googleClientId)).catch(() => {}); }, []);
+  useEffect(() => { fetch(API + "/api/config", { headers: H }).then((r) => r.json()).then((c) => setGcid(c.googleClientId)).catch(() => {}); }, []);
   useEffect(() => {
     if (!gcid) return;
     const w = window as any;
@@ -332,7 +372,7 @@ function Patients({ route, me }: any) {
           : <table className="tbl"><tbody>{[["Nama lengkap", sel.full_name], ["Panggilan", sel.nickname], ["Lahir", sel.dob], ["Alamat", sel.address], ["Asuransi", sel.insurance]].map(([k, v]) => <tr key={k}><td style={{ color: "#6d7c74" }}>{k}</td><td><b>{v || "—"}</b></td></tr>)}</tbody></table>)}
         {tab === "Riwayat Medis" && <div><p><b>Riwayat kelahiran</b><br />{sel.history?.birth_history || "—"}</p><p><b>Catatan khusus</b><br />{sel.history?.notes || "—"}</p><p>Alergi: <span className="pill">{sel.history?.allergies || "—"}</span></p></div>}
         {tab === "Dokumen" && <div>{(sel.documents || []).map((d: any) => <div key={d.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>📄 <b>{d.title}</b> <small style={{ color: "#6d7c74" }}>{d.kind} • {d.file_url}</small></div>)}{!sel.documents?.length && <div className="empty"><div className="big">📄</div>Belum ada dokumen. Upload akte / assessment / rujukan (PDF/JPG ≤10MB).</div>}<Upload childId={id} onDone={() => api.get("/api/patients/" + id).then(setSel)} /></div>}
-        {tab === "Billing" && <div><p>Asuransi: <b>{sel.insurance || "Pribadi"}</b></p><p className="sub" style={{ margin: 0 }}>Billing read-only di MVP — modul pembayaran penuh non-goal.</p></div>}
+        {tab === "Billing" && <BillingTab childId={id} child={sel} />}
         {tab === "Catatan" && <div><h4 style={{ margin: "0 0 6px" }}>Kunjungan & SOAP</h4>{visits.length ? visits.map((v: any) => <div key={v.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee", fontSize: 13.5, display: "flex", gap: 8, alignItems: "center" }}><div style={{ flex: 1, cursor: "pointer" }} onClick={() => (location.hash = "#/soap/" + v.id)}><b>{v.date}</b> • {v.visit_type} <span className={"pill " + (v.status === "final" ? "ok" : "warn")}>{v.status}{v.has_soap ? "" : " • kosong"}</span><br /><small style={{ color: "#2c5545", textDecoration: "underline" }}>{v.has_soap ? "Buka catatan →" : "Isi catatan →"}</small></div>{v.status !== "final" && ["owner", "dokter"].includes(me?.role) && <button className="btn btn-s" title="Hapus draft" onClick={() => { if (confirm("Hapus kunjungan draft ini? Tidak bisa dibatalkan.")) api.del("/api/visits/" + v.id).then(() => api.get("/api/visits?childId=" + id).then((r) => setVisits(r.data))).catch((e) => alert("Gagal (" + e.message + ")")); }}>🗑</button>}</div>) : "Belum ada kunjungan."}
           <h4 style={{ margin: "14px 0 6px" }}>Sesi terapi</h4>{sess.length ? sess.slice(0, 8).map((s: any) => <div key={s.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee", fontSize: 13.5 }}><b>{s.date}</b> • {s.type_name} — {s.target || "—"}<br /><small style={{ color: "#6d7c74" }}>{s.home_recommendation || ""}</small></div>) : "Belum ada sesi terapi."}</div>}
       </div></div>;
@@ -341,6 +381,75 @@ function Patients({ route, me }: any) {
     <div className="toolbar"><input className="inp" placeholder="⌕ Saring nama / No. RM…" value={q} onChange={(e) => setQ(e.target.value)} />{me?.role === "terapis" ? <small style={{ color: "#6d7c74" }}>Anda masuk sebagai terapis (read-only di sini).</small> : <button className="btn btn-s" style={{ background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={add}>+ Tambah pasien</button>}</div>
     <div className="card" style={{ padding: 6 }}><table className="tbl"><thead><tr><th>Anak</th><th>No. RM</th><th>Usia</th><th>Ortu</th><th>Status</th></tr></thead><tbody>{filtered.map((p: any) => <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => (location.hash = "#/patients/" + p.id)}><td><span className="avatar" style={{ display: "inline-grid", width: 32, height: 32, fontSize: 11, verticalAlign: "middle", marginRight: 10 }}>{initials(p.full_name)}</span><b>{p.full_name}</b></td><td>{p.mr_number}</td><td>{ageID(p.dob)}</td><td><small style={{ color: "#2c5545" }}>{p.parent_names || "—"}</small></td><td><span className={"pill " + pill(p.status || "aktif")}>{p.status || "aktif"}</span></td></tr>)}</tbody></table>
       {!filtered.length && <div className="empty"><div className="big">🔍</div>Tidak ada pasien cocok “{q}”.</div>}</div></div>;
+}
+
+// ponytail: billing tab — invoice lines, payment status, printable receipt + PDF
+function BillingTab({ childId, child }: any) {
+  const [d, setD] = useState<any>(null); const [msg, setMsg] = useState("");
+  const [form, setForm] = useState<any>({ description: "", qty: 1, unit_price: "" });
+  const [showPrices, setShowPrices] = useState(false);
+  const load = () => api.get(`/api/billing?childId=${childId}`).then(setD).catch((e) => setMsg("Gagal (" + e.message + ")"));
+  useEffect(() => { load(); }, [childId]);
+  const add = () => {
+    if (!form.description) return alert("Isi deskripsi item.");
+    const body: any = { child_id: childId, description: form.description, qty: Number(form.qty) || 1 };
+    if (form.unit_price !== "") body.unit_price = Number(form.unit_price);
+    api.post("/api/billing/items", body).then(() => { setForm({ description: "", qty: 1, unit_price: "" }); load(); }).catch((e) => alert("Gagal (" + e.message + ")"));
+  };
+  const generate = () => api.post("/api/billing/generate", { child_id: childId }).then((r) => { setMsg(r.created ? r.created + " sesi terapi ditagihkan." : "Semua sesi terapi sudah tertagih."); load(); }).catch((e) => alert("Gagal (" + e.message + ")"));
+  const printReceipt = () => { document.body.classList.add("print-receipt"); window.print(); setTimeout(() => document.body.classList.remove("print-receipt"), 300); };
+  const items = d?.data || []; const t = d?.totals || { total: 0, paid: 0, unpaid: 0 };
+  return <div>
+    <div className="grid three">
+      <div className="card stat"><div><small>Total tagihan</small><div className="num" style={{ fontSize: 24 }}>{formatIDR(t.total)}</div></div></div>
+      <div className="card stat"><div><small>Lunas</small><div className="num" style={{ fontSize: 24 }}>{formatIDR(t.paid)}</div></div></div>
+      <div className="card stat"><div><small>Tunggakan</small><div className="num" style={{ fontSize: 24 }}>{formatIDR(t.unpaid)}</div><span className={"pill " + (t.unpaid ? "warn" : "ok")}>{t.unpaid ? "Belum dibayar" : "Bersih"}</span></div></div>
+    </div>
+    <div className="toolbar" style={{ marginTop: 14 }}>
+      <button className="btn btn-s" onClick={generate}>⚡ Tagih sesi terapi</button>
+      <button className="btn btn-s" onClick={() => window.open(API + `/api/billing/receipt?childId=${childId}`, "_blank")}>⬇ Struk PDF</button>
+      <button className="btn btn-s" onClick={printReceipt}>🖨 Cetak struk</button>
+      <button className="btn btn-s" onClick={() => setShowPrices(!showPrices)}>⚙ Harga layanan</button>
+      {msg && <span className="sub" style={{ margin: 0 }}>{msg}</span>}
+    </div>
+    {showPrices && <div className="card" style={{ marginBottom: 14 }}>
+      <h4 style={{ margin: "0 0 8px" }}>Harga layanan (IDR)</h4>
+      {(d?.prices || []).map((p: any) => <div key={p.name} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f0e7d2" }}>
+        <span style={{ flex: 1, fontSize: 13.5 }}>{p.name}</span>
+        <input className="inp" style={{ width: 130, height: 38 }} defaultValue={p.price} onBlur={(e) => api.put(`/api/billing/prices/${encodeURIComponent(p.name)}`, { price: Number(e.target.value) }).then(load)} />
+      </div>)}
+    </div>}
+    <div className="card" style={{ padding: 6 }}>
+      <table className="tbl"><thead><tr><th>Tanggal</th><th>Keterangan</th><th>Qty</th><th>Harga</th><th>Total</th><th>Status</th><th /></tr></thead>
+        <tbody>{items.map((i: any) => <tr key={i.id}>
+          <td style={{ whiteSpace: "nowrap" }}>{i.date}</td><td><b>{i.description}</b></td><td>{i.qty}</td><td>{formatIDR(i.unit_price)}</td><td><b>{formatIDR(i.total)}</b></td>
+          <td><span className={"pill " + (i.status === "paid" ? "ok" : "warn")}>{i.status === "paid" ? "Lunas" : "Belum"}</span></td>
+          <td style={{ whiteSpace: "nowrap" }}>
+            <button className="btn btn-s" onClick={() => api.patch(`/api/billing/items/${i.id}`, { status: i.status === "paid" ? "unpaid" : "paid" }).then(load)}>{i.status === "paid" ? "Batalkan" : "Tandai lunas"}</button>
+            <button className="btn btn-s" style={{ marginLeft: 6 }} title="Hapus" onClick={() => { if (confirm("Hapus item tagihan ini?")) api.del(`/api/billing/items/${i.id}`).then(load); }}>🗑</button>
+          </td>
+        </tr>)}{!items.length && <tr><td colSpan={7} style={{ textAlign: "center", color: "#6d7c74", padding: 18 }}>Belum ada tagihan. Klik “Tagih sesi terapi” atau tambah item manual.</td></tr>}</tbody></table>
+    </div>
+    <div className="card" style={{ marginTop: 14 }}>
+      <h4 style={{ margin: "0 0 8px" }}>+ Tambah item manual</h4>
+      <div className="fgrid"><input className="inp" placeholder="Deskripsi (cth. Konsultasi Growth)" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+        <div style={{ display: "flex", gap: 8 }}><input className="inp" style={{ width: 90 }} type="number" min={1} value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} title="Qty" />
+          <input className="inp" style={{ width: 140 }} type="number" placeholder="Harga" value={form.unit_price} onChange={(e) => setForm({ ...form, unit_price: e.target.value })} /></div></div>
+      <button className="btn btn-s" style={{ marginTop: 12, background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={add}>Simpan item</button>
+    </div>
+    <div id="receipt-print" className="receipt">
+      <div className="receipt-head"><div><div className="receipt-logo">ASAKITA</div><small>Child Development &amp; Therapy Center</small></div><div style={{ textAlign: "right" }}><small>STRUK / TAGIHAN</small><br /><small>{new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</small></div></div>
+      <div className="receipt-body">
+        <p><b>Pasien:</b> {child?.full_name} ({child?.mr_number || "-"})<br /><b>Asuransi:</b> {child?.insurance || "Pribadi"}</p>
+        <table className="tbl"><thead><tr><th>Item</th><th>Qty</th><th>Harga</th><th>Total</th></tr></thead>
+          <tbody>{items.map((i: any) => <tr key={i.id}><td>{i.description} <small style={{ color: "#6d7c74" }}>{i.date}</small></td><td>{i.qty}</td><td>{formatIDR(i.unit_price)}</td><td>{formatIDR(i.total)}</td></tr>)}</tbody></table>
+        <div className="receipt-total"><span>Total</span><b>{formatIDR(t.total)}</b></div>
+        <div className="receipt-total"><span>Lunas</span><b>{formatIDR(t.paid)}</b></div>
+        <div className="receipt-total"><span>Tunggakan</span><b>{formatIDR(t.unpaid)}</b></div>
+        <p className="sub" style={{ marginTop: 14 }}>Simpan struk ini sebagai bukti pembayaran.</p>
+      </div>
+    </div>
+  </div>;
 }
 
 // ponytail: link a self-registered parent account to this child (portal shows only linked children)
@@ -389,7 +498,7 @@ function Upload({ childId, onDone }: any) {
   const up = async (e: any) => {
     const f = e.target.files[0]; if (!f) return;
     const fd = new FormData(); fd.append("file", f); fd.append("title", f.name);
-    const r = await fetch(API + `/api/patients/${childId}/documents`, { method: "POST", credentials: "include", body: fd });
+    const r = await fetch(API + `/api/patients/${childId}/documents`, { method: "POST", credentials: "include", headers: H, body: fd });
     if (!r.ok) alert("Upload ditolak (" + r.status + ") — hanya PDF/JPG/PNG ≤10MB.");
     else onDone?.();
   };
@@ -436,43 +545,184 @@ function Soap({ route }: any) {
 const ACTS = ["Imitasi suara", "Kontak mata", "Instruksi sederhana", "Kosakata dasar", "Motorik halus"];
 function Therapy() {
   const [list, setList] = useState<any[]>([]); const [types, setTypes] = useState<any[]>([]); const [kids, setKids] = useState<any[]>([]);
-  const [f, setF] = useState<any>({ date: new Date().toISOString().slice(0, 10), acts: [] as string[] });
-  const load = (child = "") => api.get("/api/therapy-sessions" + (child ? `?childId=${child}` : "")).then((r) => setList(r.data)).catch(() => {});
+  const [progs, setProgs] = useState<any[]>([]);
+  const [f, setF] = useState<any>({ date: new Date().toISOString().slice(0, 10), acts: [] as string[], recipe: "", recipe_title: "Latihan di rumah" });
+  const load = (child = "") => {
+    api.get("/api/therapy-sessions" + (child ? `?childId=${child}` : "")).then((r) => setList(r.data)).catch(() => {});
+    if (child) api.get(`/api/home-programs?childId=${child}`).then((r) => setProgs(r.data)).catch(() => setProgs([]));
+  };
   useEffect(() => { load(); api.get("/api/therapy-types").then((r) => setTypes(r.data)).catch(() => {}); api.get("/api/patients").then((r) => setKids(r.data)).catch(() => {}); }, []);
   const toggle = (a: string) => setF({ ...f, acts: f.acts.includes(a) ? f.acts.filter((x: string) => x !== a) : [...f.acts, a] });
-  return <div><h2 className="serif">Catatan terapi</h2><p className="sub">Satu sesi = target + aktivitas + respon + PR rumah. Tersimpan per terapis.</p>
+  const recipeItems = f.recipe.split("\n").map((s) => s.trim()).filter(Boolean);
+  const save = () => {
+    if (!f.child_id || !f.type_id) return alert("Pilih anak + jenis terapi.");
+    const body: any = { ...f, activities: f.acts };
+    if (recipeItems.length) body.home_program = { title: f.recipe_title || "Latihan di rumah", items: recipeItems.map((label) => ({ label })) };
+    api.post("/api/therapy-sessions", body).then(() => { load(f.child_id); setF({ ...f, acts: [], recipe: "" }); }).catch((e) => alert("Gagal (" + e.message + ")"));
+  };
+  return <div><h2 className="serif">Catatan terapi</h2><p className="sub">Satu sesi = target + aktivitas + respon + resep latihan rumah.</p>
     <div className="grid two"><div className="card"><h3 style={{ marginTop: 0 }}>Sesi baru</h3>
       <div className="fgrid"><div><label className="lbl">Anak</label><select className="inp" value={f.child_id || ""} onChange={(e) => { setF({ ...f, child_id: e.target.value }); load(e.target.value); }}><option value="">— semua —</option>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select></div>
         <div><label className="lbl">Tanggal</label><input className="inp" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></div></div>
-      <label className="lbl">Jenis terapi</label><select className="inp" onChange={(e) => setF({ ...f, type_id: e.target.value })}><option value="">— pilih —</option>{types.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-      <label className="lbl">Target terapi</label><input className="inp" placeholder="cth. verbal & respon komunikasi sederhana" onChange={(e) => setF({ ...f, target: e.target.value })} />
+      <label className="lbl">Jenis terapi</label><select className="inp" value={f.type_id || ""} onChange={(e) => setF({ ...f, type_id: e.target.value })}><option value="">— pilih —</option>{types.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+      <label className="lbl">Target terapi</label><input className="inp" placeholder="cth. verbal &amp; respon komunikasi sederhana" value={f.target || ""} onChange={(e) => setF({ ...f, target: e.target.value })} />
       <label className="lbl">Aktivitas dilakukan</label><div className="checks">{ACTS.map((a) => <label key={a}><input type="checkbox" checked={f.acts.includes(a)} onChange={() => toggle(a)} />{a}</label>)}</div>
-      <div className="fgrid"><div><label className="lbl">Respon anak</label><input className="inp" placeholder="3/5 instruksi direspon" onChange={(e) => setF({ ...f, response: e.target.value })} /></div><div><label className="lbl">PR rumah</label><input className="inp" placeholder="10 mnt/hari…" onChange={(e) => setF({ ...f, home_recommendation: e.target.value })} /></div></div>
-      <button className="btn btn-p" style={{ marginTop: 16 }} onClick={() => { if (!f.child_id || !f.type_id) return alert("Pilih anak + jenis terapi."); api.post("/api/therapy-sessions", { ...f, activities: f.acts }).then(() => load(f.child_id)).catch((e) => alert("Gagal (" + e.message + ")")); }}>Simpan progress</button></div>
-      <div><h3 style={{ margin: "4px 0 10px" }}>20 sesi terakhir{f.child_id ? " — " + (kids.find((k: any) => k.id === f.child_id)?.full_name || "") : ""}</h3><div className="tl">{list.slice(0, 20).map((s: any) => <div className="it" key={s.id}><b>{(s.date || "").slice(5)}</b><div><b>{s.type_name}</b>{!f.child_id && <small style={{ color: "#6d7c74" }}> • {s.child_name || ""}</small>}<br /><small style={{ color: "#6d7c74" }}>{s.target || "—"}{s.home_recommendation ? " • PR: " + s.home_recommendation : ""}</small></div><span className="pill">{s.response || "—"}</span></div>)}{!list.length && <div className="empty"><div className="big">⬢</div>Belum ada sesi.</div>}</div></div></div></div>;
+      <div className="fgrid"><div><label className="lbl">Respon anak</label><input className="inp" placeholder="3/5 instruksi direspon" value={f.response || ""} onChange={(e) => setF({ ...f, response: e.target.value })} /></div><div><label className="lbl">PR rumah</label><input className="inp" placeholder="10 mnt/hari…" value={f.home_recommendation || ""} onChange={(e) => setF({ ...f, home_recommendation: e.target.value })} /></div></div>
+      <div className="recipe-box">
+        <label className="lbl">Resep latihan di rumah (1 item per baris)</label>
+        <input className="inp" placeholder="Judul resep" value={f.recipe_title} onChange={(e) => setF({ ...f, recipe_title: e.target.value })} />
+        <textarea className="inp" rows={4} placeholder={"Latihan bicara 10 menit\nSebut nama benda 5x"} value={f.recipe} onChange={(e) => setF({ ...f, recipe: e.target.value })} />
+        <small className="sub" style={{ margin: 0 }}>{recipeItems.length ? recipeItems.length + " item akan dikirim ke orang tua untuk dicatat harian." : "Kosongkan bila tidak ada resep."}</small>
+      </div>
+      <button className="btn btn-p" style={{ marginTop: 16 }} onClick={save}>Simpan progress</button></div>
+      <div><h3 style={{ margin: "4px 0 10px" }}>20 sesi terakhir{f.child_id ? " — " + (kids.find((k: any) => k.id === f.child_id)?.full_name || "") : ""}</h3><div className="tl">{list.slice(0, 20).map((s: any) => <div className="it" key={s.id}><b>{(s.date || "").slice(5)}</b><div><b>{s.type_name}</b>{!f.child_id && <small style={{ color: "#6d7c74" }}> • {s.child_name || ""}</small>}<br /><small style={{ color: "#6d7c74" }}>{s.target || "—"}{s.home_recommendation ? " • PR: " + s.home_recommendation : ""}</small></div><span className="pill">{s.response || "—"}</span></div>)}{!list.length && <div className="empty"><div className="big">⬢</div>Belum ada sesi.</div>}</div>
+        {f.child_id && <><h3 style={{ margin: "18px 0 8px" }}>Resep latihan di rumah</h3>
+          {progs.length ? progs.map((p: any) => <div className="card" key={p.id} style={{ padding: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><b>{p.title}</b><small style={{ color: "#6d7c74" }}>{(p.created_at || "").slice(0, 10)}</small></div>
+            {p.instructions ? <p className="sub" style={{ margin: "4px 0" }}>{p.instructions}</p> : null}
+            {p.items.map((i: any) => <div key={i.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", borderBottom: "1px solid #f0e7d2" }}>
+              <span>{i.label}</span><span className="pill">{i.doneCount} hari</span></div>)}
+          </div>) : <p className="sub">Belum ada resep untuk anak ini — tulis resep pada sesi terapi.</p>}
+        </>}
+      </div></div></div>;
+}
+
+const IND_TABS: [string, string][] = [["weight", "Berat badan"], ["height", "Tinggi badan"], ["head", "Lingkar kepala"]];
+const DOT_FILL: Record<string, string> = { very_low: "#b6493f", low: "#c9952f", normal: "#2c5545", high: "#c9952f", very_high: "#b6493f", unknown: "#6d7c74" };
+const SD_LABEL = "-2 SD", SD2 = "+2 SD";
+
+// ponytail: growth chart — WHO/CDC reference bands from the API, child's own line on top
+function GrowthChart({ curve, w = 560, h = 300 }: any) {
+  const geo = useMemo(() => (curve ? growthGeometry(curve, { width: w, height: h }) : null), [curve]);
+  if (!geo) return <div className="empty"><div className="big">◭</div>Belum ada data pengukuran.</div>;
+  return <div>
+    <svg className="growth-svg" viewBox={`0 0 ${geo.w} ${geo.h}`} role="img" aria-label={"Kurva " + (curve.label || "")}>
+      <path d={geo.area(-2, 2)} fill="#2c554514" />
+      {[-3, -2, 0, 2, 3].map((z) => {
+        const l = geo.lines.find((x: any) => x.z === z);
+        return l ? <path key={z} d={l.d} fill="none" stroke={z === 0 ? "#2c5545" : "#a9bdb1"} strokeWidth={z === 0 ? 2 : 1.4} strokeDasharray={Math.abs(z) === 3 ? "5 4" : undefined} /> : null;
+      })}
+      {geo.child && <path d={geo.child} fill="none" stroke="#c9952f" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />}
+      {geo.dots.map((p: any, i: number) => <circle key={p.id || i} cx={p.cx} cy={p.cy} r={5.5} fill={DOT_FILL[p.band] || "#2c5545"} stroke="#fff" strokeWidth={2}>
+        <title>{p.date} • {p.value} {curve.unit} • z {p.z} • persentil {p.percentile}</title>
+      </circle>)}
+      {geo.xTicks.map((t: any, i: number) => <text key={i} x={t.x} y={geo.h - 8} fontSize={10} textAnchor="middle" fill="#6d7c74">{t.label}</text>)}
+      {geo.yTicks.map((t: any, i: number) => <text key={i} x={6} y={t.y + 3} fontSize={10} fill="#6d7c74">{t.label}</text>)}
+    </svg>
+    <div className="legend">
+      <span><i style={{ background: "#2c5545" }} /> Median</span>
+      <span><i style={{ background: "#a9bdb1" }} /> {SD_LABEL} / {SD2}</span>
+      <span><i style={{ background: "#c9952f" }} /> Pengukuran anak</span>
+      <span className="pill">{curve.standard === "WHO" ? "WHO 0–5 th" : "CDC 2000"}</span>
+    </div>
+  </div>;
 }
 
 function Progress() {
   const [kids, setKids] = useState<any[]>([]); const [cid, setCid] = useState("");
-  const [g, setG] = useState<any[]>([]); const [m, setM] = useState<any[]>([]); const [progs, setProgs] = useState<any[]>([]);
+  const [m, setM] = useState<any[]>([]); const [progs, setProgs] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]); const [pt, setPt] = useState(""); const [pf, setPf] = useState("2x/minggu");
+  const [ind, setInd] = useState("weight"); const [curve, setCurve] = useState<any>(null); const [std, setStd] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [gf, setGf] = useState<any>({ date: new Date().toISOString().slice(0, 10), weight_kg: "", height_cm: "", head_cm: "" });
   useEffect(() => { api.get("/api/patients").then((r) => { setKids(r.data); if (r.data[0] && !cid) setCid(r.data[0].id); }).catch(() => {}); api.get("/api/therapy-types").then((r) => { setTypes(r.data); if (r.data[0]) setPt(r.data[0].id); }).catch(() => {}); }, []);
-  const load = (id: string) => { if (!id) return; api.get("/api/growth?childId=" + id).then((r) => setG(r.data)).catch(() => {}); api.get("/api/milestones?childId=" + id).then((r) => setM(r.data)).catch(() => {}); api.get("/api/therapy-programs?childId=" + id).then((r) => setProgs(r.data)).catch(() => {}); };
+  const load = (id: string) => { if (!id) return; api.get("/api/milestones?childId=" + id).then((r) => setM(r.data)).catch(() => {}); api.get("/api/therapy-programs?childId=" + id).then((r) => setProgs(r.data)).catch(() => {}); };
   useEffect(() => { load(cid); }, [cid]);
-  const W = 520, H = 190, P = 34;
-  const pts = g.filter((x) => x.weight_kg).map((x) => Number(x.weight_kg));
-  const path = pts.length > 1 ? pts.map((v, i) => { const x = P + (i / (pts.length - 1)) * (W - P * 2); const min = Math.min(...pts), mx = Math.max(...pts); const y = H - P - ((v - min) / Math.max(0.1, mx - min)) * (H - P * 2); return `${i ? "L" : "M"}${x.toFixed(0)} ${y.toFixed(0)}`; }).join(" ") : "";
-  return <div><h2 className="serif">Tumbuh kembang</h2><p className="sub">Kurva tumbuh kembang anak.</p>
-    <div className="toolbar"><select className="inp" value={cid} onChange={(e) => setCid(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select>
-      <button className="btn btn-s" onClick={() => { const w = prompt("Berat (kg)?"); if (!w) return; const h2 = prompt("Tinggi (cm)?") || null; api.post("/api/growth", { child_id: cid, weight_kg: Number(w), height_cm: h2 ? Number(h2) : null }).then(() => load(cid)); }}>+ BB/TB</button></div>
-    <div className="grid two"><div className="card"><h3 style={{ marginTop: 0 }}>Kurva berat badan {g.length ? <span className="pill ok">{g[g.length - 1].weight_kg} kg terakhir</span> : null}</h3>
-      {path ? <svg className="growth-svg" viewBox={`0 0 ${W} ${H}`}><line x1={P} y1={H - P} x2={W - P} y2={H - P} stroke="#ddd" /><line x1={P} y1={P} x2={P} y2={H - P} stroke="#ddd" /><path d={path} fill="none" stroke="#2c5545" strokeWidth={4} strokeLinecap="round" /></svg>
-        : <div className="empty"><div className="big">◭</div>Belum ada data BB — tambah di atas.</div>}
-      <div style={{ marginTop: 10 }}>{g.slice(-6).map((x: any) => <div key={x.id} style={{ fontSize: 13, padding: "6px 0", borderBottom: "1px solid #f0e7d2" }}>{x.date}: <b>{x.weight_kg} kg</b> / {x.height_cm ?? "—"} cm</div>)}</div></div>
-      <div className="card"><h3 style={{ marginTop: 0 }}>Milestone</h3><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{m.map((x: any) => <button key={x.key} className={"tab" + (x.status === "achieved" ? " on" : "")} title={x.status} onClick={() => { const nx = x.status === "achieved" ? "in_progress" : x.status === "in_progress" ? "concern" : "achieved"; api.put("/api/milestones", { child_id: cid, key: x.key, label: x.label, status: nx }).then(() => load(cid)); }}>{x.label} • {x.status === "achieved" ? "✓" : x.status}</button>)}{!m.length && <span className="sub">Belum ada milestone.</span>}</div>
-        <button className="btn btn-s" style={{ marginTop: 10 }} onClick={() => { const label = prompt("Milestone baru (cth. Berjalan mandiri)?"); if (!label) return; const key = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40) || ("m" + Date.now()); api.put("/api/milestones", { child_id: cid, key, label, status: "in_progress" }).then(() => load(cid)); }}>+ Tambah milestone</button>
-        <h3>Program terapi</h3>{progs.map((p: any) => <div key={p.type_id} onClick={() => { const nx = p.status === "aktif" ? "selesai" : p.status === "selesai" ? "nonaktif" : "aktif"; api.put("/api/therapy-programs", { child_id: cid, type_id: p.type_id, frequency: p.frequency, status: nx }).then(() => load(cid)); }} style={{ padding: "10px 0", borderBottom: "1px solid #f0e7d2", fontSize: 13.5, cursor: "pointer" }}><b>{p.type_name || p.type_id}</b> • {p.frequency} <span className={"pill " + pill(p.status)}>{p.status}</span></div>)}{!progs.length && <p className="sub">Belum ada program.</p>}
-        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}><select className="inp" style={{ minWidth: 170 }} value={pt} onChange={(e) => setPt(e.target.value)}>{types.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</select><input className="inp" style={{ width: 130 }} value={pf} onChange={(e) => setPf(e.target.value)} placeholder="2x/minggu" /><button className="btn btn-s" style={{ background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={() => { if (!cid || !pt) return alert("Pilih anak + jenis terapi."); api.put("/api/therapy-programs", { child_id: cid, type_id: pt, frequency: pf || "1x/minggu", status: "aktif" }).then(() => load(cid)); }}>+ Tambah</button></div></div></div></div>;
+  useEffect(() => { if (!cid) return setCurve(null); api.get(`/api/growth/curve?childId=${cid}&type=${ind}` + (std ? `&standard=${std}` : "")).then(setCurve).catch(() => setCurve(null)); }, [cid, ind, std]);
+  const saveGrowth = () => {
+    if (!gf.weight_kg && !gf.height_cm && !gf.head_cm) return alert("Isi minimal satu pengukuran.");
+    const body: any = { child_id: cid, date: gf.date };
+    if (gf.weight_kg) body.weight_kg = Number(gf.weight_kg);
+    if (gf.height_cm) body.height_cm = Number(gf.height_cm);
+    if (gf.head_cm) body.head_cm = Number(gf.head_cm);
+    api.post("/api/growth", body).then(() => { setAdding(false); setGf({ ...gf, weight_kg: "", height_cm: "", head_cm: "" }); }).catch((e) => alert("Gagal (" + e.message + ")"));
+  };
+  const pts = curve?.points || [];
+  return <div><h2 className="serif">Tumbuh kembang</h2><p className="sub">Kurva pertumbuhan dengan acuan WHO (0–5 tahun) dan CDC (5–19 tahun), checklist Denver, dan program terapi.</p>
+    <div className="toolbar">
+      <select className="inp" value={cid} onChange={(e) => setCid(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select>
+      <div className="seg">{IND_TABS.map(([k, l]) => <button key={k} className={"seg-b" + (ind === k ? " on" : "")} onClick={() => setInd(k)}>{l}</button>)}</div>
+      <select className="inp" value={std} onChange={(e) => setStd(e.target.value)} title="Acuan">
+        <option value="">Acuan otomatis</option><option value="WHO">WHO (0–5 th)</option><option value="CDC">CDC (5–19 th)</option>
+      </select>
+      <button className="btn btn-s" onClick={() => setAdding(!adding)}>+ Pengukuran</button>
+    </div>
+    {adding && <div className="card" style={{ marginBottom: 16 }}>
+      <div className="fgrid"><div><label className="lbl">Tanggal</label><input className="inp" type="date" value={gf.date} onChange={(e) => setGf({ ...gf, date: e.target.value })} /></div>
+        <div><label className="lbl">Berat (kg)</label><input className="inp" type="number" step="0.1" value={gf.weight_kg} onChange={(e) => setGf({ ...gf, weight_kg: e.target.value })} /></div></div>
+      <div className="fgrid" style={{ marginTop: 10 }}><div><label className="lbl">Tinggi (cm)</label><input className="inp" type="number" step="0.1" value={gf.height_cm} onChange={(e) => setGf({ ...gf, height_cm: e.target.value })} /></div>
+        <div><label className="lbl">Lingkar kepala (cm)</label><input className="inp" type="number" step="0.1" value={gf.head_cm} onChange={(e) => setGf({ ...gf, head_cm: e.target.value })} /></div></div>
+      <button className="btn btn-s" style={{ marginTop: 12, background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={saveGrowth}>Simpan pengukuran</button>
+    </div>}
+    <div className="grid two">
+      <div className="card"><h3 style={{ marginTop: 0 }}>{curve?.label || "Kurva"}{curve?.latest ? <span className={"pill " + (curve.latest.band === "normal" ? "ok" : curve.latest.band === "unknown" ? "" : "warn")}> {curve.latest.value} {curve.unit} • persentil {curve.latest.percentile ?? "—"}</span> : null}</h3>
+        <GrowthChart curve={curve} />
+        {pts.length > 0 && <table className="tbl" style={{ marginTop: 10 }}><thead><tr><th>Tanggal</th><th>Usia</th><th>Nilai</th><th>z</th><th>Status</th></tr></thead>
+          <tbody>{[...pts].reverse().map((p: any) => <tr key={p.id}><td>{p.date}</td><td>{p.ageMonths} bl</td><td><b>{p.value} {curve.unit}</b></td><td>{p.z ?? "—"}</td><td><span className={"pill " + (p.band === "normal" ? "ok" : p.band === "unknown" ? "" : "warn")}>{BAND_LABEL[p.band] || p.band}</span></td></tr>)}</tbody></table>}
+      </div>
+      <div>
+        <div className="card"><h3 style={{ marginTop: 0 }}>Checklist Denver</h3>
+          <p className="sub">Centang milestone perkembangan per usia anak.</p>
+          <a className="btn btn-s" href={"#/denver" + (cid ? "?childId=" + cid : "")}>Buka checklist →</a>
+        </div>
+        <div className="card"><h3 style={{ marginTop: 0 }}>Milestone</h3>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{m.map((x: any) => <button key={x.key} className={"tab" + (x.status === "achieved" ? " on" : "")} title={x.status} onClick={() => { const nx = x.status === "achieved" ? "in_progress" : x.status === "in_progress" ? "concern" : "achieved"; api.put("/api/milestones", { child_id: cid, key: x.key, label: x.label, status: nx }).then(() => load(cid)); }}>{x.label} • {x.status === "achieved" ? "✓" : x.status}</button>)}{!m.length && <span className="sub">Belum ada milestone.</span>}</div>
+          <button className="btn btn-s" style={{ marginTop: 10 }} onClick={() => { const label = prompt("Milestone baru (cth. Berjalan mandiri)?"); if (!label) return; const key = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40) || ("m" + Date.now()); api.put("/api/milestones", { child_id: cid, key, label, status: "in_progress" }).then(() => load(cid)); }}>+ Tambah milestone</button>
+        </div>
+        <div className="card"><h3 style={{ marginTop: 0 }}>Program terapi</h3>
+          {progs.map((p: any) => <div key={p.type_id} onClick={() => { const nx = p.status === "aktif" ? "selesai" : p.status === "selesai" ? "nonaktif" : "aktif"; api.put("/api/therapy-programs", { child_id: cid, type_id: p.type_id, frequency: p.frequency, status: nx }).then(() => load(cid)); }} style={{ padding: "10px 0", borderBottom: "1px solid #f0e7d2", fontSize: 13.5, cursor: "pointer" }}><b>{p.type_name || p.type_id}</b> • {p.frequency} <span className={"pill " + pill(p.status)}>{p.status}</span></div>)}{!progs.length && <p className="sub">Belum ada program.</p>}
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}><select className="inp" style={{ minWidth: 170 }} value={pt} onChange={(e) => setPt(e.target.value)}>{types.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</select><input className="inp" style={{ width: 130 }} value={pf} onChange={(e) => setPf(e.target.value)} placeholder="2x/minggu" /><button className="btn btn-s" style={{ background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={() => { if (!cid || !pt) return alert("Pilih anak + jenis terapi."); api.put("/api/therapy-programs", { child_id: cid, type_id: pt, frequency: pf || "1x/minggu", status: "aktif" }).then(() => load(cid)); }}>+ Tambah</button></div>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+// ponytail: Denver II checklist — staff ticks each item (lulus / belum / tidak ada info)
+function Denver() {
+  const h = useHash();
+  const [kids, setKids] = useState<any[]>([]); const [cid, setCid] = useState("");
+  const [d, setD] = useState<any>(null); const [band, setBand] = useState("");
+  useEffect(() => {
+    const q = new URLSearchParams((h.split("?")[1] || ""));
+    api.get("/api/patients").then((r) => {
+      setKids(r.data);
+      setCid(q.get("childId") || r.data[0]?.id || "");
+    }).catch(() => {});
+  }, [h]);
+  const load = (id: string) => { if (!id) return; api.get("/api/denver?childId=" + id).then((r) => { setD(r); setBand((b) => b || r.bands.find((x: any) => x.isCurrent)?.key || r.bands[0]?.key || ""); }).catch(() => setD(null)); };
+  useEffect(() => { load(cid); }, [cid]);
+  const mark = (itemKey: string, status: string) => api.put("/api/denver", { child_id: cid, item_key: itemKey, status }).then(() => load(cid)).catch((e) => alert("Gagal (" + e.message + ")"));
+  const shown = d?.bands?.find((b: any) => b.key === band) || d?.bands?.[0];
+  const doms = ["motor", "language", "social", "fine"];
+  const DOM_LABEL: Record<string, string> = { motor: "Motorik Kasar", language: "Bahasa", social: "Personal–Sosial", fine: "Motorik Halus–Adaptif" };
+  return <div><h2 className="serif">Checklist Denver</h2><p className="sub">Milestone perkembangan 4 domain per rentang usia — centang hasil pemeriksaan anak.</p>
+    <div className="toolbar"><select className="inp" value={cid} onChange={(e) => setCid(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select></div>
+    {!d ? <div className="card"><div className="skel" style={{ width: "50%" }} /><div className="skel" style={{ marginTop: 10 }} /></div> : <>
+      <div className="grid three">
+        <div className="card stat"><div><small>Rentang usia</small><div className="num" style={{ fontSize: 24 }}>{d.score.band}</div></div></div>
+        <div className="card stat"><div><small>Kemajuan</small><div className="num" style={{ fontSize: 24 }}>{d.score.progress}%</div><span className="pill">{d.score.checked}/{d.score.total} item dicek</span></div></div>
+        <div className="card stat"><div><small>Perlu perhatian</small><div className="num" style={{ fontSize: 24 }}>{d.score.delayed.length}</div><span className={"pill " + (d.score.delayed.length ? "warn" : "ok")}>{d.score.delayed.length ? "item belum logris" : "Wajar"}</span></div></div>
+      </div>
+      <div className="tabs">{d.bands.map((b: any) => <button key={b.key} className={"tab" + (b.key === band ? " on" : "")} onClick={() => setBand(b.key)}>{b.label}{b.isCurrent ? " •" : ""}</button>)}</div>
+      {shown && <div className="card">
+        {doms.map((dom) => {
+          const items = shown.items.filter((i: any) => i.domain === dom);
+          if (!items.length) return null;
+          return <div key={dom} style={{ marginBottom: 14 }}>
+            <h4 style={{ margin: "0 0 6px", fontSize: 13.5, textTransform: "uppercase", letterSpacing: ".6px", color: "#43544d" }}>{DOM_LABEL[dom]}</h4>
+            {items.map((it: any) => <div className="denver-item" key={it.key}>
+              <span className="denver-text">{it.text}</span>
+              <span className="denver-ops">
+                {[["pass", "Lulus"], ["not_yet", "Belum"], ["no_info", "Tidak ada info"]].map(([v, l]) => <button key={v} className={"chip" + (it.status === v ? " on " + v : "")} onClick={() => mark(it.key, v)}>{l}</button>)}
+              </span>
+            </div>)}
+          </div>;
+        })}
+        {shown.isCurrent ? <p className="sub">Rentang usia saat ini — sentang di sini untuk skoring utama.</p> : <p className="sub">Rentang usia di atas/bawah — gunakan untuk menandai keterlambatan atau kemampuan lebih.</p>}
+      </div>}
+    </>}
+  </div>;
 }
 
 function Reports() {

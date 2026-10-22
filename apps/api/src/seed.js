@@ -61,5 +61,17 @@ if (!db.prepare("SELECT id FROM parents WHERE user_id=?").get(pid)) {
   g(c2, "2026-07-01", 12.4, 88); g(c2, "2026-09-01", 13.2, 90);
   for (const [k, l, s] of [["kontak_mata", "Kontak mata", "in_progress"], ["instruksi_1", "Instruksi 1 langkah", "achieved"], ["kosakata", "Kosakata ekspresif", "in_progress"]])
     db.prepare("INSERT OR REPLACE INTO milestones(child_id,key,label,status,updated_at) VALUES(?,?,?,?,?)").run(c2, k, l, s, t);
+  // demo: resep latihan (home program) + checklist Denver + satu baris tagihan
+  const hp = uid("hp");
+  db.prepare("INSERT INTO home_programs(id,child_id,session_id,title,instructions,created_at,created_by) VALUES(?,?,?,?,?,?,?)")
+    .run(hp, c2, null, "Latihan bicara harian", "Sebut nama benda saat bermain, 10 menit per hari.", t, dokter);
+  for (const [label, note] of [["Sebut nama benda 5x", "target 1x/hari"], ["Baca buku bergambar 10 menit", "sebelum tidur"]])
+    db.prepare("INSERT INTO home_program_items(id,program_id,label,target_per_day,note,done_dates) VALUES(?,?,?,?,?,?)")
+      .run(uid("hpi"), hp, label, 1, note, "[]");
+  for (const [k, s] of [["b5-motor-1", "pass"], ["b5-language-1", "pass"], ["b5-social-2", "not_yet"]])
+    db.prepare("INSERT OR REPLACE INTO denver_results(child_id,item_key,status,note,checked_at,checked_by) VALUES(?,?,?,?,?,?)")
+      .run(c2, k, s, "", t, dokter);
+  db.prepare("INSERT INTO billing_items(id,child_id,date,description,qty,unit_price,session_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+    .run(uid("bi"), c2, t, "Terapi Wicara", 2, 120000, null, "unpaid", t);
   console.log("seed ok");
 }

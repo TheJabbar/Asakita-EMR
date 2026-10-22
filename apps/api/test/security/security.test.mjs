@@ -118,4 +118,31 @@ describe("security gate", () => {
     assert.equal(await (await P({ birth_weight_kg: "3,1" })).status, 200); // ID decimal comma tolerated
     assert.equal((await (await app.request(`/api/patients/${kid.id}`, { headers: H(dok.cookie) })).json()).birth_weight_kg, 3.1);
   });
+  it("14 new features: staff-only writes, parent scoping, no raw SOAP in portal payloads", async () => {
+    // x-test-nolimit: the login rate-limit bucket is already spent by test 7
+    const NL = { "x-test-nolimit": "1" };
+    const dok = await login("dokter@asakita.demo", "prototype", NL), ter = await login("terapis@asakita.demo", "prototype", NL),
+      par = await login("alya@example.com", "prototype", NL), parB = await login("budi@example.com", "prototype", NL);
+    const kids = await (await app.request("/api/patients", { headers: H(dok.cookie) })).json();
+    const kid = kids.data[0].id;
+    // denver: staff only to write; parent blocked from staff route
+    assert.equal((await app.request("/api/denver", { method: "PUT", headers: H(par.cookie), body: JSON.stringify({ child_id: kid, item_key: "b1-motor-1", status: "pass" }) })).status, 403);
+    assert.equal((await app.request(`/api/denver?childId=${kid}`, { headers: H(par.cookie) })).status, 403);
+    assert.equal((await app.request("/api/denver", { method: "PUT", headers: H(ter.cookie), body: JSON.stringify({ child_id: kid, item_key: "b1-motor-1", status: "pass" }) })).status, 200);
+    // billing: staff-only writes; parent blocked from staff routes
+    assert.equal((await app.request("/api/billing/items", { method: "POST", headers: H(par.cookie), body: JSON.stringify({ child_id: kid, description: "x" }) })).status, 403);
+    assert.equal((await app.request("/api/billing/generate", { method: "POST", headers: H(par.cookie), body: JSON.stringify({ child_id: kid }) })).status, 403);
+    assert.equal((await app.request(`/api/billing?childId=${kid}`, { headers: H(par.cookie) })).status, 403);
+    // home program: parent A cannot touch parent B's item
+    const mine = (await (await app.request("/api/portal/children", { headers: H(par.cookie) })).json()).data[0];
+    const prog = await (await app.request("/api/home-programs", { method: "POST", headers: H(dok.cookie), body: JSON.stringify({ child_id: mine.id, title: "Sec", items: [{ label: "latihan" }] }) })).json();
+    const items = (await (await app.request(`/api/home-programs?childId=${mine.id}`, { headers: H(dok.cookie) })).json()).data.find((p) => p.id === prog.id).items;
+    assert.equal((await app.request(`/api/portal/home-programs/items/${items[0].id}/toggle`, { method: "POST", headers: H(parB.cookie) })).status, 404);
+    assert.equal((await app.request(`/api/portal/home-programs/items/${items[0].id}/toggle`, { method: "POST", headers: H(par.cookie) })).status, 200);
+    // portal payloads stay curated
+    for (const u of [`/api/portal/denver/${mine.id}`, `/api/portal/billing?childId=${mine.id}`, `/api/portal/home-programs?childId=${mine.id}`]) {
+      const txt = await (await app.request(u, { headers: H(par.cookie) })).text();
+      assert.ok(!/"subjective"|"objective"/.test(txt), u);
+    }
+  });
 });

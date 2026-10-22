@@ -1,5 +1,6 @@
 import { mkdirSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
+import { DEFAULT_PRICES } from "./constants.js";
 // vite can't statically resolve this (intentional) — Node runtime can
 const _spec = "node:" + "sqlite";
 const { DatabaseSync } = await import(_spec);
@@ -44,6 +45,11 @@ CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY, child_id TEXT, period_st
 CREATE TABLE IF NOT EXISTS home_recommendations(id TEXT PRIMARY KEY, child_id TEXT, therapy_session_id TEXT, title TEXT, detail TEXT, done INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS audit_logs(id TEXT PRIMARY KEY, actor_id TEXT, action TEXT, entity TEXT, entity_id TEXT, at TEXT, meta TEXT);
 CREATE TABLE IF NOT EXISTS password_resets(email TEXT, token TEXT, at TEXT);
+CREATE TABLE IF NOT EXISTS denver_results(child_id TEXT, item_key TEXT, status TEXT, note TEXT, checked_at TEXT, checked_by TEXT, PRIMARY KEY(child_id,item_key));
+CREATE TABLE IF NOT EXISTS home_programs(id TEXT PRIMARY KEY, child_id TEXT, session_id TEXT, title TEXT, instructions TEXT, created_at TEXT, created_by TEXT);
+CREATE TABLE IF NOT EXISTS home_program_items(id TEXT PRIMARY KEY, program_id TEXT, label TEXT, target_per_day REAL DEFAULT 1, note TEXT, done_dates TEXT DEFAULT '[]');
+CREATE TABLE IF NOT EXISTS service_prices(name TEXT PRIMARY KEY, price INTEGER);
+CREATE TABLE IF NOT EXISTS billing_items(id TEXT PRIMARY KEY, child_id TEXT, date TEXT, description TEXT, qty REAL DEFAULT 1, unit_price INTEGER, session_id TEXT, status TEXT DEFAULT 'unpaid', created_at TEXT);
 `;
 export function migrate() {
   const db = getDb();
@@ -54,5 +60,9 @@ export function migrate() {
   const n = db.prepare("SELECT COUNT(*) c FROM therapy_types").get().c;
   if (!n) for (const t of ["Terapi Wicara", "Terapi Okupasi", "Sensori Integrasi"])
     db.prepare("INSERT INTO therapy_types(id,name) VALUES(?,?)").run(uid("tt"), t);
+  // seed service prices (billing) — editable later from the Billing tab
+  const np = db.prepare("SELECT COUNT(*) c FROM service_prices").get().c;
+  if (!np) for (const [name, price] of Object.entries(DEFAULT_PRICES))
+    db.prepare("INSERT OR IGNORE INTO service_prices(name,price) VALUES(?,?)").run(name, price);
 }
 if (!existsSync("./data")) mkdirSync("./data", { recursive: true });

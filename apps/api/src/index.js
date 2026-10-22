@@ -6,6 +6,12 @@ import { basename, join, extname } from "node:path";
 import { getDb, migrate, uid, rows, row, run, dbPath } from "./db.js";
 import { hashPassword, verifyPassword, signToken, verifyToken, verifyGoogleIdToken } from "./auth.js";
 import { log } from "./log.js";
+import { err, audit, me, need, STAFF, parentChildIds, needOwnChild, appKind } from "./guard.js";
+import { pdfBytes } from "./pdf.js";
+import { growthRouter } from "./growth.js";
+import { denverRouter } from "./denver.js";
+import { homeRouter, createHomeProgram } from "./home.js";
+import { billingRouter } from "./billing.js";
 
 migrate();
 const app = new Hono();
@@ -26,12 +32,13 @@ app.use("*", async (c, next) => {
 // --- security headers + CORS (never * with credentials; reflect allowlisted origin) ---
 // ponytail: comma-separated allowlist so EMR (:5173) + portal (:5174) both work in dev
 const ORIGINS = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_ORIGIN || "http://localhost:5173,http://localhost:5174").split(",").map((s) => s.trim());
-// ponytail: which origins count as "portal" for cookie choice (prod: set PORTAL_ORIGINS=https://portal.asakita.id)
-const PORTAL_ORIGINS = (process.env.PORTAL_ORIGINS || "http://localhost:5174").split(",").map((s) => s.trim());
+// ponytail: which origins count as "portal" for cookie choice (dev only — prod uses the X-Asakita-App header)
+// --- helpers (see guard.js — one copy of the auth helpers) ---
 app.use("*", async (c, next) => {
   await next();
   // ponytail: frontends inject all CSS via a JS-created <style> tag + load Google Fonts, so inline styles + font hosts must be allowed (scripts stay 'self'-only)
-  c.header("content-security-policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' https://accounts.google.com; frame-src 'self' https://accounts.google.com; connect-src 'self' https://accounts.google.com");
+  // img-src needs data: (inline SVG icons, e.g. select arrows) and blob: (document downloads in the portal)
+  c.header("content-security-policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; script-src 'self' https://accounts.google.com; frame-src 'self' https://accounts.google.com; connect-src 'self' https://accounts.google.com");
   c.header("x-frame-options", "DENY");
   c.header("x-content-type-options", "nosniff");
   const reqOrigin = c.req.header("origin") || "";
@@ -42,44 +49,12 @@ app.use("*", async (c, next) => {
 });
 app.on("OPTIONS", "*", (c) => c.body(null, 204)); // 204 must carry null body or undici throws
 
-// --- helpers ---
-const err = (c, code, message, s = 400) => c.json({ error: { code, message } }, s);
-const audit = (actor, action, entity, id, meta = {}) =>
-  run("INSERT INTO audit_logs(id,actor_id,action,entity,entity_id,at,meta) VALUES(?,?,?,?,?,?,?)",
-    uid("au"), actor || "-", action, entity, id || "-", new Date().toISOString(), JSON.stringify(meta));
-async function me(c) {
-  // ponytail: separate staff vs portal cookies so EMR+portal stay logged in side-by-side (same host, different ports/hosts)
-  const staff = getCookie(c, "asakita") || (c.req.header("authorization") || "").replace("Bearer ", "");
-  const portal = getCookie(c, "asakita_portal");
-  const isPortal = PORTAL_ORIGINS.includes(c.req.header("origin") || "");
-  const p = verifyToken(isPortal ? (portal || staff) : (staff || portal));
-  if (!p) return null;
-  return row("SELECT id,name,email,role,status FROM users WHERE id=?", p.sub) || null;
-}
-function setSession(c, user) { // cookie follows the calling app (via Origin), never clobbers the other app
-  const isPortal = PORTAL_ORIGINS.includes(c.req.header("origin") || "");
+// --- helpers (see guard.js — one copy of the auth helpers) ---
+function setSession(c, user) { // cookie follows the calling app (via X-Asakita-App / Origin), never clobbers the other app
+  const isPortal = appKind(c) === "portal";
   // ponytail: COOKIE_CROSS_SITE=1 for https tunnels (codespaces/vscode forwarding); localhost stays Lax
   const cross = process.env.COOKIE_CROSS_SITE === "1" ? { sameSite: "None", secure: true } : {};
   setCookie(c, isPortal ? "asakita_portal" : "asakita", signToken({ sub: user.id, role: user.role }), { httpOnly: true, path: "/", maxAge: 7 * 86400, ...cross });
-}
-const need = (...roles) => async (c, next) => {
-  const u = await me(c);
-  if (!u) return err(c, "unauthorized", "login required", 401);
-  if (!roles.includes(u.role)) return err(c, "forbidden", "insufficient role", 403);
-  c.set("user", u);
-  await next();
-};
-const STAFF = ["owner", "dokter", "terapis", "admin"];
-function parentChildIds(userId) {
-  const p = row("SELECT id FROM parents WHERE user_id=?", userId);
-  if (!p) return [];
-  return rows("SELECT child_id FROM parent_children WHERE parent_id=?", p.id).map((r) => r.child_id);
-}
-async function needOwnChild(c, next) {
-  const u = c.get("user");
-  const id = c.req.param("id") || c.req.query("childId");
-  if (id && !parentChildIds(u.id).includes(id)) return err(c, "not_found", "not found", 404);
-  await next();
 }
 const bodyLimit = async (c, next) => { // ponytail: 1MB cap, 400 on abuse
   const len = Number(c.req.header("content-length") || 0);
@@ -142,9 +117,9 @@ app.post("/api/auth/forgot", bodyLimit, async (c) => {
   return c.json({ ok: true });
 });
 app.post("/api/auth/logout", (c) => {
-  const origin = c.req.header("origin") || "";
-  if (!origin) { deleteCookie(c, "asakita", { path: "/" }); deleteCookie(c, "asakita_portal", { path: "/" }); }
-  else deleteCookie(c, PORTAL_ORIGINS.includes(origin) ? "asakita_portal" : "asakita", { path: "/" });
+  const portal = appKind(c) === "portal";
+  if (!portal) deleteCookie(c, "asakita", { path: "/" }); // staff logout keeps the portal session
+  else deleteCookie(c, "asakita_portal", { path: "/" });
   return c.json({ ok: true });
 });
 app.get("/api/me", async (c) => { const u = await me(c); return u ? c.json({ user: u }) : err(c, "unauthorized", "login", 401); });
@@ -341,6 +316,9 @@ app.post("/api/therapy-sessions", need("owner", "dokter", "terapis"), bodyLimit,
   const id = uid("s");
   run("INSERT INTO therapy_sessions(id,child_id,type_id,date,target,activities,response,therapist_id,home_recommendation) VALUES(?,?,?,?,?,?,?,?,?)",
     id, b.child_id, b.type_id, b.date || new Date().toISOString().slice(0, 10), b.target || "", JSON.stringify(b.activities || []), b.response || "", c.get("user").id, b.home_recommendation || "");
+  // ponytail: the session form may carry a home program ("resep") — one extra write, same form
+  if (b.home_program && (b.home_program.items || []).length)
+    createHomeProgram({ ...b.home_program, child_id: b.child_id, session_id: id, userId: c.get("user").id });
   audit(c.get("user").id, "therapy_create", "session", id);
   return c.json({ id }, 201);
 });
@@ -348,7 +326,7 @@ app.get("/api/growth", need(...STAFF), (c) => c.json({ data: rows("SELECT * FROM
 app.post("/api/growth", need("owner", "dokter", "terapis"), bodyLimit, async (c) => {
   const b = await c.req.json(); const id = uid("g");
   run("INSERT INTO growth_records(id,child_id,date,weight_kg,height_cm,head_cm,recorded_by) VALUES(?,?,?,?,?,?,?)",
-    id, b.child_id, b.date || new Date().toISOString().slice(0, 10), b.weight_kg, b.height_cm, b.head_cm || null, c.get("user").id);
+    id, b.child_id, b.date || new Date().toISOString().slice(0, 10), b.weight_kg ?? null, b.height_cm ?? null, b.head_cm ?? null, c.get("user").id);
   return c.json({ id }, 201);
 });
 app.get("/api/milestones", need(...STAFF), (c) => c.json({ data: rows("SELECT * FROM milestones WHERE child_id=?", c.req.query("childId") || "-") }));
@@ -372,14 +350,6 @@ app.put("/api/therapy-programs", need("owner", "dokter"), bodyLimit, async (c) =
 app.get("/api/therapy-types", async (c) => c.json({ data: rows("SELECT * FROM therapy_types") }));
 
 // --- reports + articles ---
-function pdfBytes(title, lines) {
-  const txt = [`BT /F1 16 Tf 50 750 Td (${title}) Tj ET`, ...lines.slice(0, 20).map((l, i) => `BT /F1 10 Tf 50 ${720 - i * 18} Td (${String(l).slice(0, 90).replace(/[()]/g, "")}) Tj ET`)].join("\n");
-  const objs = [`1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj`, `2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj`, `3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj`, `4 0 obj << /Length ${txt.length} >> stream\n${txt}\nendstream endobj`, `5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj`];
-  let out = "%PDF-1.4\n", off = [0]; let pos = out.length;
-  for (const o of objs) { off.push(pos); out += o + "\n"; pos = out.length; }
-  const xref = pos; out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + off.slice(1).map((o) => `${String(o).padStart(10, "0")} 00000 n `).join("\n") + `\ntrailer << /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  return Buffer.from(out);
-}
 app.get("/api/reports/preview", need(...STAFF), (c) => {
   const { childId, from = "2026-07-01", to = "2026-09-30" } = c.req.query();
   const child = row("SELECT * FROM children WHERE id=?", childId);
@@ -555,6 +525,12 @@ app.post("/api/portal/reports/:id/email", P, bodyLimit, async (c) => {
   appendFileSync("./data/outbox.json", JSON.stringify({ to: to || c.get("user").email, report: r.id, at: new Date().toISOString() }) + "\n");
   return c.json({ ok: true });
 });
+
+// --- feature routers (growth curve, denver checklist, home program, billing) ---
+app.route("/", growthRouter);
+app.route("/", denverRouter);
+app.route("/", homeRouter);
+app.route("/", billingRouter);
 
 // --- static frontends + uploads (Fly single-image; ponytail: manual fs serve, no new dep) ---
 const DIST_EMR = existsSync("./public/emr") ? "./public/emr" : "./apps/emr/dist";

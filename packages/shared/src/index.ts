@@ -1,4 +1,5 @@
 // ponytail: pure-TS helpers so both frontends + API + tests share one logic copy
+export * from "./growth-chart";
 export const ROLES = ["owner", "dokter", "terapis", "admin", "parent"] as const;
 export type Role = (typeof ROLES)[number];
 

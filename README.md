@@ -4,8 +4,8 @@ Full-stack clinic system for a child development & therapy center. One monorepo,
 
 | App | Who | What |
 |---|---|---|
-| `apps/emr` (port 5173) | dokter / terapis / admin / owner (desktop) | patients, schedule, SOAP, therapy, growth, reports, users |
-| `apps/portal` (port 5174) | parents (mobile-first) | child profile, appointments, growth charts, screening, therapy summaries, education articles, reports |
+| `apps/emr` (port 5173) | dokter / terapis / admin / owner (desktop) | patients, schedule, SOAP, therapy, growth curve (WHO/CDC), Denver checklist, billing, reports, users |
+| `apps/portal` (port 5174) | parents (mobile-first) | child profile, appointments, growth charts, screening, Denver summary, home-program tracking, billing summary, education articles, reports |
 | `apps/api` (port 8787) | — | Hono + `node:sqlite` stdlib (no native deps). Same SQL ships to Cloudflare D1 in prod |
 
 Source prototypes: `asakita_emr_prototype.html`, `asakita_parent_portal_prototype.html`.
@@ -66,6 +66,21 @@ npm run dev:portal   # :5174
 
 Point the frontends at the API: `apps/emr/.env` / `apps/portal/.env` → `VITE_API_URL=http://localhost:8787`.
 
+## Clinical features
+
+| Feature | Where | Data source |
+|---|---|---|
+| **Kurva tumbuh kembang** (BB / TB / LK + z-score + persentil) | EMR → Tumbuh Kembang, Portal → Grafik pertumbuhan | WHO Child Growth Standards (< 5 tahun) via `who-growth-standards` (npm, tabel LMS resmi, offline) + CDC 2000 (5–19 tahun) via `apps/api/src/data/cdc-lms.json` (LMS resmi, di-vendor dari cdc.gov). Acuan dipilih otomatis per usia, bisa diganti manual. |
+| **Checklist Denver** (4 domain × 8 rentang usia, status lulus/belum/tidak ada info) | EMR → Checklist Denver, Portal → Perkembangan (ringkasan) | `apps/api/src/denver.js` (katalog item), skor per domain + penanda keterlambatan/lebih cepat |
+| **Resep latihan + tracking harian** | EMR → Terapi (tulis resep per sesi), Portal → Resep latihan (centang per hari) | `home_programs` + `home_program_items` |
+| **Billing & cetak struk** (IDR) | EMR → Data Pasien → Billing, Portal → Tagihan | `billing_items` + `service_prices` (harga default dapat diubah), struk PDF + cetak (`window.print`) |
+
+Regenerasi tabel CDC (opsional, butuh unduhan CSV dari cdc.gov):
+
+```powershell
+node apps/api/scripts/build-cdc-data.mjs <folder-dengan-wtage.csv,statage.csv,bmiagerev.csv>
+```
+
 ## Demo accounts (password: `prototype`)
 
 | Email | Role | Where |
@@ -124,10 +139,13 @@ Nightly: `wrangler d1 export` → R2 (retain 30d).
 
 ```
 apps/api/src/{index.js,db.js,auth.js,seed.js,migrate.js}  # Hono app, node:sqlite, scrypt+HMAC auth
+apps/api/src/{guard.js,growth.js,denver.js,home.js,billing.js,pdf.js,constants.js}  # auth guards + clinical features
+apps/api/src/data/cdc-lms.json  # vendored CDC 2000 LMS tables (weight/stature/BMI, 2-20y)
 apps/api/test/{unit,spec}/*.mjs                           # node:test suites
 apps/emr/src/App.tsx      # internal EMR (hash routes, plain fetch)
 apps/portal/src/App.tsx   # parent portal (hash routes, plain fetch)
 packages/shared/src/index.ts  # roles, status machines, progress calc, report builder
+packages/shared/src/growth-chart.ts  # chart geometry shared by EMR + portal
 Dockerfile  compose.yml  wrangler.toml  IMPLEMENTATION_PLAN.md
 ```
 
