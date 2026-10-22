@@ -456,7 +456,7 @@ function Edu() {
     <input className="inp" placeholder="⌕ Cari artikel…" value={q} onChange={(e) => setQ(e.target.value)} />
     <div className="tabs">{["", "ASI", "MPASI", "stimulasi", "perilaku"].map((c) => <button key={c} className={"tab" + (cat === c ? " on" : "")} onClick={() => setCat(c)}>{c || "Semua"}</button>)}</div>
     {!shown.length ? <div className="empty"><div className="big">📚</div>Tidak ada artikel cocok.</div>
-      : shown.map((a: any) => <div className="row" key={a.id} onClick={() => setOpen(open === a.id ? "" : a.id)}><div className="thumb">{emo(a.category)}</div><div style={{ flex: 1 }}><h4>{a.title}</h4><p>{a.author} • <span className="pill green">{a.category}</span></p>{open === a.id ? <p style={{ fontSize: 13, color: "#1d2b25", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{a.body_md}</p> : <p className="art-body">{a.body_md}</p>}</div><span style={{ color: "#275844", fontWeight: 800 }}>{open === a.id ? "▾" : "▸"}</span></div>)}
+      : shown.map((a: any) => <div className="row" key={a.id} onClick={() => setOpen(open === a.id ? "" : a.id)}><div className="thumb">{emo(a.category)}</div><div style={{ flex: 1 }}><h4>{a.title}</h4><p>{a.author} • <span className="pill green">{a.category}</span></p>{open === a.id ? <><p style={{ fontSize: 13, color: "#1d2b25", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{a.body_md}</p>{a.source_url && <a href={a.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, fontWeight: 700, color: "#275844" }}>Sumber: {a.source_name || "tautan asli"} ↗</a>}</> : <p className="art-body">{a.body_md}</p>}</div><span style={{ color: "#275844", fontWeight: 800 }}>{open === a.id ? "▾" : "▸"}</span></div>)}
   </div>;
 }
 

@@ -251,6 +251,24 @@ async function emrSuite(browser) {
   const preview = await page.locator(".print-card").innerText();
   check("EMR: report preview loads", preview.includes("Pasien"), preview.slice(0, 60).replace(/\n/g, " "));
 
+  // --- education articles (Sistem → Edukasi) ---
+  await page.goto(BASE + "/emr/#/articles");
+  await page.waitForSelector("text=Edukasi & Berita", { timeout: 15000 });
+  const artRows = await page.locator(".card .denver-item").count();
+  check("EMR: education article list", artRows >= 13, artRows + " articles");
+  const qaTitle = "QA Artikel " + Date.now();
+  await page.click("button:has-text('+ Artikel baru')");
+  await page.fill('input[placeholder="Judul artikel"]', qaTitle);
+  await page.fill('input[placeholder="Nama sumber"]', "QA Sumber");
+  await page.fill('input[placeholder="https://tautan-sumber"]', "https://example.org/qa");
+  await page.fill("textarea", "Ringkasan artikel uji dari QA browser.");
+  await page.click("button:has-text('Terbitkan artikel')");
+  await page.waitForSelector(`text=${qaTitle}`, { timeout: 15000 });
+  check("EMR: add education article", (await page.locator(`text=${qaTitle}`).count()) >= 1);
+  await page.click(`.denver-item:has-text("${qaTitle}") button[title="Hapus artikel"]`);
+  await page.waitForTimeout(1200);
+  check("EMR: delete education article", (await page.locator(`text=${qaTitle}`).count()) === 0);
+
   // --- users ---
   await page.goto(BASE + "/emr/#/users");
   await page.waitForSelector("table.tbl tbody tr", { timeout: 20000 }).catch(() => {});
@@ -349,6 +367,11 @@ async function portalSuite(browser) {
   await page.waitForSelector(".row", { timeout: 15000 });
   const arts = await page.locator(".row").count();
   check("PORTAL: articles list", arts > 0, arts + " articles");
+  await page.locator(".row").first().click();
+  await page.waitForTimeout(600);
+  const srcLink = page.locator('.row a:has-text("Sumber:")').first();
+  const srcHref = (await srcLink.count()) ? await srcLink.getAttribute("href") : "";
+  check("PORTAL: article shows its real source link", /^https:\/\//.test(srcHref || ""), srcHref || "no link");
 
   // account
   await page.goto(BASE + "/portal/#/account");
@@ -391,12 +414,60 @@ async function childlessSuite(browser) {
   await ctx.close();
 }
 
+// ponytail: the Abdul Jr. demo family (second parent account) — proves a fresh parent sees a full profile
+async function abdulSuite(browser) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  const errors = [];
+  watch(page, errors);
+  await page.goto(BASE + "/portal/", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('input[placeholder="email@anda.id"]', { timeout: 20000 });
+  await page.fill('input[placeholder="email@anda.id"]', "abdul.jabbar.3794@gmail.com");
+  await page.fill('input[type="password"]', "prototype");
+  await page.click("button.btn-p:has-text('Masuk')");
+  await page.waitForSelector(".hello", { timeout: 20000 });
+  const home = await page.locator(".phone").innerText();
+  check("PORTAL: abdul account is linked to Abdul Jr.", /Ringkasan Abdul/.test(home), home.replace(/\n+/g, " | ").slice(0, 90));
+  await page.goto(BASE + "/portal/#/growth");
+  await page.waitForTimeout(2500);
+  check("PORTAL: abdul growth chart has measurements", (await page.locator("svg.chart-svg circle").count()) > 0);
+  await page.goto(BASE + "/portal/#/screening");
+  await page.waitForTimeout(2500);
+  const scr = await page.locator(".phone").innerText();
+  check("PORTAL: abdul development page is populated", !/Belum ada data anak tertaut/.test(scr) && /Sesuai usia|Dalam proses/.test(scr), scr.replace(/\n+/g, " | ").slice(0, 110));
+  check("PORTAL: abdul page has no console errors", errors.length === 0, errors.slice(0, 2).join(" | "));
+  await ctx.close();
+}
+
+// ponytail: the front-office admin edits education articles but must not manage users
+async function adminSuite(browser) {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  const errors = [];
+  watch(page, errors);
+  await page.goto(BASE + "/emr/", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#em", { timeout: 20000 });
+  await page.fill("#em", "admin@asakita.demo");
+  await page.fill("#pw", "prototype");
+  await page.click("button:has-text('Masuk')");
+  await page.waitForSelector("text=Dashboard", { timeout: 20000 });
+  const navText = await page.locator("nav.side").innerText();
+  check("EMR: admin sees Sistem → Edukasi, not Role & User", /Edukasi/.test(navText) && !/Role & User/.test(navText), navText.replace(/\n+/g, " | "));
+  await page.goto(BASE + "/emr/#/articles");
+  await page.waitForSelector("text=Edukasi & Berita", { timeout: 15000 });
+  check("EMR: admin can open the education editor", (await page.locator(".card .denver-item").count()) >= 13);
+  check("EMR: admin page has no console errors", errors.length === 0, errors.slice(0, 2).join(" | "));
+  await ctx.close();
+}
+
 (async () => {
   const browser = await chromium.launch({ executablePath: EDGE, headless: true });
   try {
     await emrSuite(browser);
     await portalSuite(browser);
     await childlessSuite(browser);
+    await abdulSuite(browser);
+    await adminSuite(browser);
   } catch (e) {
     check("SUITE CRASH", false, e.message.slice(0, 300));
   } finally {

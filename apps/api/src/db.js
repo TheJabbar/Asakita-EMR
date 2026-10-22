@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS milestones(child_id TEXT, key TEXT, label TEXT, statu
 CREATE TABLE IF NOT EXISTS therapy_programs(child_id TEXT, type_id TEXT, frequency TEXT, status TEXT, PRIMARY KEY(child_id,type_id));
 CREATE TABLE IF NOT EXISTS screenings(id TEXT PRIMARY KEY, child_id TEXT, date TEXT, domain TEXT, result TEXT, note TEXT);
 CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY, child_id TEXT, kind TEXT, title TEXT, file_url TEXT, uploaded_by TEXT, created_at TEXT);
-CREATE TABLE IF NOT EXISTS articles(id TEXT PRIMARY KEY, slug TEXT UNIQUE, title TEXT, category TEXT, author TEXT, body_md TEXT, age_tag TEXT, published_at TEXT);
+CREATE TABLE IF NOT EXISTS articles(id TEXT PRIMARY KEY, slug TEXT UNIQUE, title TEXT, category TEXT, author TEXT, body_md TEXT, age_tag TEXT, published_at TEXT, source_name TEXT, source_url TEXT);
 CREATE TABLE IF NOT EXISTS reports(id TEXT PRIMARY KEY, child_id TEXT, period_start TEXT, period_end TEXT, summary TEXT, recommendations TEXT, pdf_url TEXT, created_by TEXT, created_at TEXT);
 CREATE TABLE IF NOT EXISTS home_recommendations(id TEXT PRIMARY KEY, child_id TEXT, therapy_session_id TEXT, title TEXT, detail TEXT, done INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS audit_logs(id TEXT PRIMARY KEY, actor_id TEXT, action TEXT, entity TEXT, entity_id TEXT, at TEXT, meta TEXT);
@@ -59,6 +59,10 @@ export function migrate() {
   db.exec(SCHEMA);
   if (!db.prepare("PRAGMA table_info(children)").all().some((c) => c.name === "created_at"))
     db.exec("ALTER TABLE children ADD COLUMN created_at TEXT"); // DBs created before this column; old rows stay NULL (excluded from monthly counts)
+  // ponytail: education articles gained a source link; older DBs get the columns here
+  const articleCols = db.prepare("PRAGMA table_info(articles)").all().map((c) => c.name);
+  if (!articleCols.includes("source_name")) db.exec("ALTER TABLE articles ADD COLUMN source_name TEXT");
+  if (!articleCols.includes("source_url")) db.exec("ALTER TABLE articles ADD COLUMN source_url TEXT");
   // seed therapy types if empty
   const n = db.prepare("SELECT COUNT(*) c FROM therapy_types").get().c;
   if (!n) for (const t of ["Terapi Wicara", "Terapi Okupasi", "Sensori Integrasi"])

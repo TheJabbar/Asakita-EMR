@@ -118,6 +118,7 @@ Schema itself is portable — the tables are plain columns; only the dialect abo
 | `owner@asakita.demo` | owner (full access) | EMR |
 | `alya@example.com` | parent (child: Arslan) | Portal |
 | `budi@example.com` | parent (child: Budi Jr — used for IDOR tests) | Portal |
+| `abdul.jabbar.3794@gmail.com` | parent (child: Abdul Jr — full demo profile: growth, screening, milestones, Denver) | Portal |
 
 ## Environment variables
 
@@ -147,7 +148,8 @@ npm run check          # tsc --noEmit
 
 Browser smoke test (end-to-end, real Chromium): walks the EMR and the parent portal — login, dashboard,
 patient tabs, billing + struk, growth curve with WHO/CDC bands, Denver checklist, therapy + resep,
-schedule, reports, users, and the portal pages (growth, screening, resep tracking, tagihan, artikel).
+schedule, reports, users, the education editor (Sistem → Edukasi), and the portal pages (growth, screening,
+resep tracking, tagihan, artikel with its source link).
 Needs a local Edge/Chrome and `playwright-core` (dev-only, not a project dependency):
 
 ```powershell

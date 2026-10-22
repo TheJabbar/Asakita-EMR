@@ -214,12 +214,12 @@ export default function App() {
       {nav("/progress", "◭", "Tumbuh Kembang")}
       {/* ponytail: the Denver checklist is a tab inside Tumbuh Kembang, not its own menu item */}
       {nav("/reports", "▤", "Laporan")}
-      {["owner", "dokter"].includes(me?.role) ? <><div className="side-sec">Sistem</div>{nav("/checklist", "✓", "Checklist Denver")}{nav("/users", "⚿", "Role & User")}</> : null}
+      {["owner", "dokter", "admin"].includes(me?.role) ? <><div className="side-sec">Sistem</div>{["owner", "dokter"].includes(me?.role) && nav("/checklist", "✓", "Checklist Denver")}{nav("/articles", "▣", "Edukasi")}{["owner", "dokter"].includes(me?.role) && nav("/users", "⚿", "Role & User")}</> : null}
       <div className="side-foot">Masuk sebagai <b>{me.role}</b><br /><button className="btn btn-s" style={{ marginTop: 10, width: "100%", color: "#fff", background: "#ffffff22", borderColor: "#ffffff33" }} onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include", headers: H }).then(() => setMe(null))}>Keluar</button></div>
     </nav>
     <main className="main">
       <Topbar me={me} />
-      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress me={me} /> : R.startsWith("/checklist") ? <ChecklistAdmin /> : R.startsWith("/denver") ? <Progress initial="denver" me={me} /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
+      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress me={me} /> : R.startsWith("/checklist") ? <ChecklistAdmin /> : R.startsWith("/articles") ? <ArticlesAdmin /> : R.startsWith("/denver") ? <Progress initial="denver" me={me} /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
       <div className="footer">Asakita EMR — {new Date().getFullYear()}</div>
     </main>
   </div>;
@@ -842,6 +842,73 @@ function ChecklistAdmin() {
         </span>
       </div>)}
       {shown && !(shown.items || []).length && <p className="sub">Belum ada item pada rentang ini.</p>}
+    </div>
+  </div>;
+}
+
+// ponytail: education articles are written here; the parent portal reads the same rows
+function ArticlesAdmin() {
+  const [list, setList] = useState<any[]>([]); const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
+  const [form, setForm] = useState<any>(null);
+  const call = async (path: string, method: string, body?: any) => {
+    const r = await fetch(API + path, { method, credentials: "include", headers: { ...H, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error?.message || "HTTP " + r.status);
+    return j;
+  };
+  const load = () => call("/api/articles", "GET").then((r) => { setList(r.data || []); setErr(""); }).catch((e) => setErr(e.message));
+  useEffect(() => { load(); }, []);
+  const blank = { title: "", category: "stimulasi", author: "", age_tag: "", source_name: "", source_url: "", body_md: "" };
+  const save = async () => {
+    if (!form.title.trim() || !form.body_md.trim()) return setErr("Judul dan isi artikel wajib diisi.");
+    try {
+      if (form.id) await call("/api/articles/" + form.id, "PUT", form);
+      else await call("/api/articles", "POST", form);
+      setMsg(form.id ? "Artikel diperbarui." : "Artikel ditambahkan."); setForm(null); setErr(""); load();
+    } catch (e: any) { setErr(e.message); }
+  };
+  const del = async (a: any) => {
+    if (!confirm(`Hapus artikel "${a.title}"?`)) return;
+    try { await call("/api/articles/" + a.id, "DELETE"); if (form?.id === a.id) setForm(null); setMsg("Artikel dihapus."); load(); }
+    catch (e: any) { setErr(e.message); }
+  };
+  const F = (k: string) => (e: any) => setForm({ ...form, [k]: e.target.value });
+  return <div><h2 className="serif">Edukasi & Berita</h2><p className="sub">Tulis dan kelola artikel edukasi yang tampil di portal orang tua. Sertakan tautan sumber agar orang tua bisa membaca artikel aslinya.</p>
+    {err && <div className="card" style={{ background: "#fbe6e4", borderColor: "#f0bdb7" }}><b>⚠ {err}</b></div>}
+    {msg && !err && <div className="card" style={{ background: "#e4f4ea", borderColor: "#bfe0c9" }}><b>✓ {msg}</b></div>}
+    {form ? <div className="card">
+      <h3 style={{ marginTop: 0 }}>{form.id ? "Ubah artikel" : "Artikel baru"}</h3>
+      <div className="toolbar" style={{ marginBottom: 10 }}>
+        <input className="inp" style={{ flex: 1, minWidth: 220 }} placeholder="Judul artikel" value={form.title} onChange={F("title")} />
+        <input className="inp" style={{ width: 130 }} placeholder="Kategori" value={form.category} onChange={F("category")} />
+        <input className="inp" style={{ width: 110 }} placeholder="Usia (cth. 1-2)" value={form.age_tag} onChange={F("age_tag")} />
+      </div>
+      <div className="toolbar" style={{ marginBottom: 10 }}>
+        <input className="inp" style={{ width: 180 }} placeholder="Penulis" value={form.author} onChange={F("author")} />
+        <input className="inp" style={{ width: 180 }} placeholder="Nama sumber" value={form.source_name} onChange={F("source_name")} />
+        <input className="inp" style={{ flex: 1, minWidth: 220 }} placeholder="https://tautan-sumber" value={form.source_url} onChange={F("source_url")} />
+      </div>
+      <textarea className="inp" style={{ width: "100%", minHeight: 150, padding: 10 }} placeholder="Isi artikel (ringkas, bahasa orang tua)…" value={form.body_md} onChange={F("body_md")} />
+      <div className="toolbar" style={{ marginTop: 10 }}>
+        <button className="btn btn-s" onClick={save}>{form.id ? "Simpan perubahan" : "Terbitkan artikel"}</button>
+        <button className="btn btn-s" onClick={() => { setForm(null); setErr(""); }}>Batal</button>
+      </div>
+    </div> : <div className="toolbar" style={{ marginBottom: 12 }}>
+      <button className="btn btn-s" onClick={() => { setForm({ ...blank, author: "" }); setErr(""); }}>+ Artikel baru</button>
+    </div>}
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Daftar artikel ({list.length})</h3>
+      {list.map((a: any) => <div className="denver-item" key={a.id}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <b>{a.title}</b>
+          <div className="sub" style={{ margin: "2px 0 0" }}>{a.category}{a.age_tag ? ` · usia ${a.age_tag}` : ""}{a.source_name ? ` · ${a.source_name}` : ""}</div>
+        </div>
+        <span className="denver-ops">
+          <button className="btn btn-s" onClick={() => { setForm({ ...blank, ...a }); setErr(""); window.scrollTo(0, 0); }}>Ubah</button>
+          <button className="btn btn-s" title="Hapus artikel" onClick={() => del(a)}>🗑</button>
+        </span>
+      </div>)}
+      {!list.length && <p className="sub">Belum ada artikel.</p>}
     </div>
   </div>;
 }

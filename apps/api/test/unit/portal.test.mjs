@@ -99,6 +99,37 @@ describe("unit: portal orang tua", () => {
     assert.ok(mpasi.data.length > 0 && mpasi.data.every((x) => x.category === "MPASI"));
     assert.equal((await app.request("/api/articles/mpasi-pertama")).status, 200);
   });
+  it("articles: every seeded topic links a real source; only staff can edit", async () => {
+    const all = (await (await app.request("/api/articles")).json()).data;
+    assert.ok(all.length >= 13);
+    for (const a of all) assert.ok(a.source_url?.startsWith("https://") && a.source_name, `source for ${a.slug}`);
+    const admin = await login("admin@asakita.demo");
+    const made = await app.request("/api/articles", { method: "POST", headers: H(admin), body: JSON.stringify({ title: "Artikel Uji", body_md: "Isi uji.", category: "stimulasi", source_url: "javascript:alert(1)" }) });
+    assert.equal(made.status, 201);
+    const { id, slug } = await made.json();
+    assert.equal(slug, "artikel-uji");
+    const created = (await (await app.request("/api/articles")).json()).data.find((a) => a.id === id);
+    assert.equal(created.source_url, "", "non-http source stripped");
+    assert.equal(created.author, "Admin Front Office");
+    // a partial update keeps the fields it does not send
+    assert.equal((await app.request("/api/articles/" + id, { method: "PUT", headers: H(admin), body: JSON.stringify({ title: "Artikel Uji 2", source_url: "https://example.org/a", source_name: "Contoh" }) })).status, 200);
+    const upd = (await (await app.request("/api/articles")).json()).data.find((a) => a.id === id);
+    assert.equal(upd.title, "Artikel Uji 2");
+    assert.equal(upd.body_md, "Isi uji.");
+    assert.equal(upd.source_url, "https://example.org/a");
+    assert.equal((await app.request("/api/articles", { method: "POST", headers: H(alya), body: JSON.stringify({ title: "x", body_md: "y" }) })).status, 403);
+    assert.equal((await app.request("/api/articles/" + id, { method: "DELETE", headers: H(admin) })).status, 200);
+    assert.equal((await app.request("/api/articles/" + id, { method: "DELETE", headers: H(admin) })).status, 404);
+  });
+  it("seed: Abdul Jr. is linked to abdul.jabbar.3794@gmail.com", async () => {
+    const s = await login("abdul.jabbar.3794@gmail.com");
+    const kids = (await (await app.request("/api/portal/children", { headers: H(s) })).json()).data;
+    assert.equal(kids.length, 1);
+    assert.equal(kids[0].full_name, "Abdul Jr.");
+    const growth = (await (await app.request(`/api/portal/growth/${kids[0].id}`, { headers: H(s) })).json()).data;
+    assert.ok(growth.length >= 4);
+    assert.ok((await (await app.request(`/api/portal/screening/${kids[0].id}`, { headers: H(s) })).json()).data.length >= 5);
+  });
 });
 describe("unit: EMR + portal sessions coexist", () => {
   const EMR = "http://localhost:5173", PORTAL = "http://localhost:5174";

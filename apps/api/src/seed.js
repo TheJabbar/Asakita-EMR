@@ -39,29 +39,84 @@ if (!db.prepare("SELECT id FROM parents WHERE user_id=?").get(pid)) {
   const ap = (child, type, room, status, h) => db.prepare("INSERT INTO appointments(id,child_id,type,room,staff_id,starts_at,ends_at,status) VALUES(?,?,?,?,?,?,?,?)")
     .run(uid("a"), child, type, room, dokter, `${t}T0${h}:00`, `${t}T0${h}:30`, status);
   ap(c1, "Konsultasi Dokter", "R. Konsultasi", "done", 8); ap(c2, "Terapi Okupasi", "R. Terapi 1", "in_progress", 9);
-  const arts = [
-    ["panduan-asi", "Panduan ASI Eksklusif 0–6 Bulan", "ASI", "dr. Imelda Hady, Sp.A", "Berikan ASI eksklusif...", "0-6"],
-    ["mpasi-pertama", "MPASI Pertama Usia 6 Bulan", "MPASI", "Tim Asakita", "Tekstur, porsi, tips...", "6-12"],
-    ["menu-mpasi", "Menu MPASI Mingguan", "MPASI", "Tim Asakita", "Ide menu 6–12 bln...", "6-12"],
-    ["stimulasi-bicara", "Cara Stimulasi Bicara di Rumah", "stimulasi", "Kak Dini", "Sebut nama benda...", "2-3"],
-    ["sensorik", "Aktivitas Sensorik Sederhana", "stimulasi", "Tim Asakita", "Main puzzle, balok...", "1-2"],
-    ["pompa-asi", "Pompa ASI untuk Ibu Bekerja", "ASI", "Konselor Laktasi", "Jadwal pompa, simpan ASI...", "0-6"],
-    ["jadwal-makan", "Jadwal Makan Bayi 6–9 Bulan", "MPASI", "Tim Asakita", "3x makan + 2x selingan...", "6-12"],
-    ["snack-sehat", "Snack Sehat Anak 1–2 Tahun", "MPASI", "Tim Asakita", "Buah, yoghurt, biskuit...", "1-2"],
-    ["main-balok", "Main Balok untuk Motorik Halus", "stimulasi", "Kak Dini", "Susun, bongkar, ulang...", "1-2"],
-    ["dongeng", "Dongeng 10 Menit Sehari", "stimulasi", "Tim Asakita", "Kosakata + bonding...", "2-3"],
-    ["tantrum", "Mengatasi Tantrum dengan Tenang", "perilaku", "Psikolog Anak", "Akui emosi, alihkan...", "2-3"],
-    ["toilet-training", "Toilet Training Tanpa Drama", "perilaku", "Tim Asakita", "Tanda siap, rutinitas...", "2-3"],
-    ["screen-time", "Batasan Screen Time Usia Dini", "perilaku", "dr. Imelda Hady, Sp.A", "Maks 1 jam, dampingi...", "2-3"],
-  ];
-  for (const [slug, title, cat, au, body, age] of arts)
-    db.prepare("INSERT OR IGNORE INTO articles(id,slug,title,category,author,body_md,age_tag,published_at) VALUES(?,?,?,?,?,?,?,?)")
-      .run(uid("ar"), slug, title, cat, au, body, age, t);
   const g = (child, d, w, h2) => db.prepare("INSERT INTO growth_records(id,child_id,date,weight_kg,height_cm,recorded_by) VALUES(?,?,?,?,?,?)").run(uid("g"), child, d, w, h2, dokter);
   for (const [k, l, s] of [["kontak_mata", "Kontak mata", "in_progress"], ["instruksi_1", "Instruksi 1 langkah", "achieved"], ["kosakata", "Kosakata ekspresif", "in_progress"]])
     db.prepare("INSERT OR REPLACE INTO milestones(child_id,key,label,status,updated_at) VALUES(?,?,?,?,?)").run(c2, k, l, s, t);
   console.log("seed ok");
 }
+
+// ponytail: education articles — real Indonesian sources (title/author stay curated, body is our
+// summary + a link to the source). Idempotent: stub-era rows (no source_url) get backfilled once,
+// after that an editor's changes in the EMR win.
+const ARTICLES = [
+  ["panduan-asi", "Panduan ASI Eksklusif 0–6 Bulan", "ASI", "dr. Imelda Hady, Sp.A", "0-6",
+    "ASI eksklusif diberikan sejak lahir sampai usia 6 bulan: hanya ASI, tanpa tambahan makanan atau minuman lain kecuali obat. WHO dan IDAI menyebut ASI saja sudah mencukupi kebutuhan gizi bayi pada periode ini sekaligus menunjang daya tahan tubuh. Pengganti ASI hanya diberikan bila ada kondisi medis tertentu atau atas anjuran dokter.",
+    "Kompas Health", "https://health.kompas.com/read/24C07180000868/apakah-asi-eksklusif-harus-6-bulan-ini-penjelasannya-"],
+  ["mpasi-pertama", "MPASI Pertama Usia 6 Bulan", "MPASI", "Tim Asakita", "6-12",
+    "IDAI menjelaskan MPASI mulai diberikan ketika ASI saja tidak lagi mencukupi kebutuhan bayi, yaitu sekitar usia 6 bulan. Mulailah dari tekstur lumat dengan porsi kecil, lalu tingkatkan tekstur dan jumlahnya sesuai kemampuan anak. Panduan resmi MPASI dari Unit Kerja Koordinasi Nutrisi IDAI bisa dipakai orang tua sebagai acuan di rumah.",
+    "IDAI", "https://www.idai.or.id/artikel/klinik/asi/pemberian-makanan-pendamping-air-susu-ibu-mpasi"],
+  ["menu-mpasi", "Menu MPASI Mingguan", "MPASI", "Tim Asakita", "6-12",
+    "Buku resep Kemenkes (2023) memberi acuan bayi 6–8 bulan: bubur kental 2–3 kali sehari ditambah 1–2 kali selingan, mulai 2–3 sendok makan lalu naik bertahap sampai setengah mangkuk (125 ml). Protein hewani seperti ikan, ayam, telur, dan daging sebaiknya ada di setiap menu; contohnya bubur soto ayam santan atau bubur singkong isi ikan. Pada usia 9–11 bulan teksturnya naik menjadi cincang halus dengan frekuensi 3–4 kali sehari.",
+    "Kompas Food", "https://www.kompas.com/food/read/2025/04/08/070000475/mpasi-6-bulan-pertama-menurut-buku-panduan-kemenkes-bayi-makan-apa-dan"],
+  ["stimulasi-bicara", "Cara Stimulasi Bicara di Rumah", "stimulasi", "Kak Dini", "2-3",
+    "Perkembangan bicara dibagi menjadi bahasa reseptif (memahami) dan ekspresif (mengucapkan). Stimulasi paling efektif lewat bermain sesuai usia: ci-luk-ba dan lagu untuk bayi, buku bergambar, sampai lempar-tangkap bola sambil menyebut kata seperti “tangkap”, “lempar”, dan “bola”. Bila anak belum mengucapkan satu kata jelas pada usia 18 bulan, sebaiknya segera berkonsultasi dengan dokter.",
+    "RS Universitas Indonesia", "https://rs.ui.ac.id/umum/berita-artikel/artikel-populer/stimulasi-anak-untuk-bicara-di-rumah"],
+  ["sensorik", "Aktivitas Sensorik Sederhana", "stimulasi", "Tim Asakita", "1-2",
+    "Sensory play tidak perlu mainan mahal: pasta mie rebus, agar-agar, beras, potongan buah, tepung, dan sereal bisa dipakai untuk mengeksplorasi tekstur, bentuk, dan sensasi berbeda. Kegiatan ini melatih kekuatan jari, koordinasi tangan-mata, ketelitian, serta kreativitas anak. Tetap dampingi anak dan pilih bahan yang aman untuk usianya.",
+    "RRI Banda Aceh", "https://rri.co.id/banda-aceh/iptek/2047835/ide-sensory-play-anak-dari-bahan-sehari-hari"],
+  ["pompa-asi", "Pompa ASI untuk Ibu Bekerja", "ASI", "Konselor Laktasi", "0-6",
+    "IDAI merangkum cara sukses menyusui saat kembali bekerja: pompa ASI secara rutin mengikuti jadwal menyusui, simpan ASI perah di wadah bersih berlabel tanggal, dan atur suhu penyimpanan. ASI perah di lemari es sekitar 4°C dapat bertahan sampai 5 hari, sedangkan di freezer bisa lebih lama tergantung jenis freezer-nya. Hangatkan dengan air hangat, jangan direbus atau dibekukan ulang.",
+    "IDAI", "https://www.idai.or.id/artikel/klinik/asi/sukses-menyusui-saat-bekerja-2"],
+  ["jadwal-makan", "Jadwal Makan Bayi 6–9 Bulan", "MPASI", "Tim Asakita", "6-12",
+    "Mulai MPASI dengan frekuensi 2–3 kali sehari: beri satu kali makan lebih dulu, lalu tambah bertahap sambil melihat respons bayi. Porsi awal kira-kira sebesar bola pingpong dan dinaikkan sesuai nafsu makan; hentikan bila bayi menolak, menutup mulut, atau mengalihkan pandangan. Variasikan menu dan jaga kebersihan alat makan, serta ingat bahwa ASI tetap diberikan sampai usia 2 tahun atau lebih.",
+    "Antara News", "https://www.antaranews.com/berita/4506489/penuhi-kebutuhan-nutrisi-si-kecil-dengan-jadwal-mpasi-yang-tepat"],
+  ["snack-sehat", "Snack Sehat Anak 1–2 Tahun", "MPASI", "Tim Asakita", "1-2",
+    "Camilan menyumbang energi dan gizi yang tidak didapat anak dari makan utama, jadi berikan 2–3 kali sehari di antara waktu makan. Pilih yang padat nutrisi: yoghurt dan susu, tahu-tempe, telur rebus, buah bertekstur lembut, sandwich selai kacang tanpa gula tambahan, atau smoothie buah. Batasi camilan manis kemasan yang tinggi gula dan garam.",
+    "RSUD Meuraxa Banda Aceh", "https://rsum.bandaacehkota.go.id/pilihan-cemilan-anak-1-tahun-yang-sehat-dan-padat-nutrisi/"],
+  ["main-balok", "Main Balok untuk Motorik Halus", "stimulasi", "Kak Dini", "1-2",
+    "Menyusun balok melatih motorik halus (jari dan pergelangan tangan) sekaligus motorik kasar saat anak merangkak dan meraih. Permainan ini juga mempertajam nalar spasial, koordinasi mata-tangan, dan kemampuan memecahkan masalah lewat trial and error. Karena anak bisa lama fokus membangun menara, rentang perhatiannya ikut terlatih.",
+    "Universitas Medan Area (BARAKA)", "https://baraka.uma.ac.id/manfaat-permainan-balok-untuk-tumbuh-kembang-anak/"],
+  ["dongeng", "Dongeng 10 Menit Sehari", "stimulasi", "Tim Asakita", "2-3",
+    "Mendongeng mempererat ikatan orang tua dan anak, sekaligus melatih kognitif, daya ingat, dan kemampuan verbal. Cerita juga menumbuhkan empati serta membantu anak memahami nilai seperti kejujuran dan persahabatan. Cukup 10 menit sehari sebelum tidur, dilakukan konsisten.",
+    "Alodokter", "https://www.alodokter.com/manfaat-dongeng-bagi-pertumbuhan-si-kecil"],
+  ["tantrum", "Mengatasi Tantrum dengan Tenang", "perilaku", "Psikolog Anak", "2-3",
+    "Tantrum adalah luapan emosi yang wajar pada anak usia dini, misalnya menangis, berteriak, atau menendang ketika keinginannya tidak terpenuhi. Orang tua perlu tetap tenang, memberi ruang yang aman, dan membantu anak mengenali emosinya dengan kalimat pendek. Menuruti semua tuntutan hanya agar tantrum berhenti justru membuat pola ini berulang.",
+    "Kementerian Kesehatan RI", "https://keslan.kemkes.go.id/view_artikel/3995/tantrum-pada-anak-dan-ketahui-apa-saja-penyebabnya"],
+  ["toilet-training", "Toilet Training Tanpa Drama", "perilaku", "Tim Asakita", "2-3",
+    "Kesiapan toilet training berbeda pada setiap anak; umumnya tanda siap muncul antara usia 18 bulan dan 2,5 tahun. Yang perlu dilihat: anak bisa duduk sendiri, popok kering saat bangun tidur, paham instruksi sederhana, dan menunjukkan ketertarikan pada toilet. Lakukan bertahap dengan rutinitas dan pujian, tanpa memaksa atau menghukum saat anak “kecolongan”.",
+    "IDAI", "https://www.idai.or.id/artikel/klinik/pengasuhan-anak/toilet-training"],
+  ["screen-time", "Batasan Screen Time Usia Dini", "perilaku", "dr. Imelda Hady, Sp.A", "2-3",
+    "IDAI dan American Academy of Pediatrics menyarankan anak di bawah 2 tahun menghindari layar, kecuali video call dengan keluarga. Untuk anak di atas 2 tahun, screen time sebaiknya tidak lebih dari 2 jam sehari, itu pun untuk konten berkualitas dan didampingi orang tua. Ganti waktu layar dengan membaca buku, bermain aktif, dan interaksi langsung.",
+    "IDAI", "https://www.idai.or.id/artikel/seputar-kesehatan-anak/keamanan-menggunakan-internet-bagi-anak"],
+];
+{
+  const today = new Date().toISOString().slice(0, 10);
+  for (const [slug, title, cat, au, age, body, srcName, srcUrl] of ARTICLES) {
+    const existing = db.prepare("SELECT id, source_url FROM articles WHERE slug=?").get(slug);
+    if (!existing)
+      db.prepare("INSERT INTO articles(id,slug,title,category,author,body_md,age_tag,published_at,source_name,source_url) VALUES(?,?,?,?,?,?,?,?,?,?)")
+        .run(uid("ar"), slug, title, cat, au, body, age, today, srcName, srcUrl);
+    else if (!existing.source_url) // stub-era row → fill it once; later edits from the EMR are kept
+      db.prepare("UPDATE articles SET body_md=?, source_name=?, source_url=? WHERE id=?").run(body, srcName, srcUrl, existing.id);
+  }
+}
+
+// ponytail: third demo family (Abdul Jr.) so the parent portal can be demoed with a fuller profile
+const abdulUser = addUser("Abdul Jabbar", "abdul.jabbar.3794@gmail.com", "parent");
+let abdulParent = db.prepare("SELECT id FROM parents WHERE user_id=?").get(abdulUser);
+if (!abdulParent) {
+  abdulParent = { id: uid("p") };
+  db.prepare("INSERT INTO parents(id,user_id,phone) VALUES(?,?,?)").run(abdulParent.id, abdulUser, "+62 812-3456-7890");
+}
+let abdulKid = db.prepare("SELECT id FROM children WHERE mr_number='0001455'").get();
+if (!abdulKid) {
+  abdulKid = { id: uid("c") };
+  db.prepare("INSERT INTO children(id,mr_number,full_name,nickname,dob,gender,blood_type,birth_weight_kg,birth_length_cm,address,insurance,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run(abdulKid.id, "0001455", "Abdul Jr.", "Abdul Jr.", "2023-08-20", "Laki-laki", "A", 3.0, 48, "Makassar", "Pribadi", new Date(Date.now() - 120 * 864e5).toISOString());
+}
+db.prepare("INSERT OR IGNORE INTO parent_children(parent_id,child_id,relation) VALUES(?,?,?)").run(abdulParent.id, abdulKid.id, "Ayah");
+db.prepare("INSERT OR REPLACE INTO medical_history(child_id,birth_history,allergies,notes) VALUES(?,?,?,?)")
+  .run(abdulKid.id, "Lahir cukup bulan, BB 3.0 kg, PB 48 cm.", "-", "Pemantauan bicara; kontrol rutin tiap 6 bulan.");
 
 // ponytail: demo growth measurements (BB / TB / LK) for every demo child — idempotent, so an
 // already-seeded DB (production) also gets them. Values follow the WHO boy median ± ~0.3 SD.
@@ -70,6 +125,7 @@ const DEMO_GROWTH = {
   "0001248": [["2025-04-12", 9.8, 76.0, 46.5], ["2025-10-12", 11.2, 83.0, 47.5], ["2026-04-12", 12.8, 88.0, 48.1], ["2026-10-01", 13.9, 92.0, 48.4]],
   "0001301": [["2024-11-07", 9.4, 75.0, 46.0], ["2025-05-07", 10.9, 82.0, 47.2], ["2025-11-07", 12.0, 87.0, 47.8], ["2026-07-01", 12.8, 90.5, 48.1], ["2026-09-01", 13.5, 92.0, 48.4]],
   "0001400": [["2023-01-01", 9.9, 77.0, 46.8], ["2024-01-01", 12.5, 88.0, 48.0], ["2025-01-01", 14.6, 96.0, 49.0], ["2026-01-01", 16.4, 102.0, 49.6], ["2026-10-01", 17.6, 106.0, 50.0]],
+  "0001455": [["2024-02-20", 7.9, 67.6, 43.3], ["2024-08-20", 9.6, 75.7, 46.1], ["2025-08-20", 12.2, 87.1, 48.3], ["2026-09-20", 14.2, 96.5, 49.2]],
 };
 for (const [mr, rows] of Object.entries(DEMO_GROWTH)) {
   const kid = db.prepare("SELECT id FROM children WHERE mr_number=?").get(mr);
@@ -85,6 +141,28 @@ for (const [mr, rows] of Object.entries(DEMO_GROWTH)) {
   }
 }
 console.log("seed growth ok");
+
+// ponytail: Abdul Jr.'s screening / milestones / Denver checks (36–48 month band) — idempotent
+if (abdulKid) {
+  const t = new Date().toISOString().slice(0, 10);
+  for (const [domain, result, note] of [
+    ["motorik_kasar", "Sesuai usia", "Berlari, melompat, naik tangga bergantian."],
+    ["motorik_halus", "Sesuai usia", "Menyusun balok, memegang krayon."],
+    ["bahasa", "Dalam proses", "Kalimat 3 kata; kosakata terus bertambah."],
+    ["sosial_emosional", "Sesuai usia", "Bermain bersama teman, mulai bergiliran."],
+    ["kognitif", "Sesuai usia", "Mengenal warna dan bentuk."],
+  ])
+    if (!db.prepare("SELECT id FROM screenings WHERE child_id=? AND domain=?").get(abdulKid.id, domain))
+      db.prepare("INSERT INTO screenings(id,child_id,date,domain,result,note) VALUES(?,?,?,?,?,?)")
+        .run(uid("sc"), abdulKid.id, t, domain, result, note);
+  for (const [k, l, s] of [["kalimat_3_kata", "Kalimat 3 kata", "in_progress"], ["makan_sendiri", "Makan sendiri", "achieved"], ["toilet", "Mulai toilet training", "in_progress"]])
+    db.prepare("INSERT OR REPLACE INTO milestones(child_id,key,label,status,updated_at) VALUES(?,?,?,?,?)").run(abdulKid.id, k, l, s, t);
+  for (const [k, s] of [["b6-motor-1", "pass"], ["b6-language-1", "not_yet"], ["b6-social-1", "pass"]])
+    if (db.prepare("SELECT id FROM denver_items WHERE id=?").get(k))
+      db.prepare("INSERT OR IGNORE INTO denver_results(child_id,item_key,status,note,checked_at,checked_by) VALUES(?,?,?,?,?,?)")
+        .run(abdulKid.id, k, s, "", t, null);
+  console.log("seed abdul ok");
+}
 
 // ponytail: demo rows for the newer features run on every boot and are idempotent —
 // an already-seeded DB (e.g. production) still gets them after a deploy.

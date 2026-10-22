@@ -402,6 +402,46 @@ app.get("/api/articles/:slug", async (c) => {
   const a = row("SELECT * FROM articles WHERE slug=?", c.req.param("slug"));
   return a ? c.json(a) : err(c, "not_found", "artikel tidak ada", 404);
 });
+// ponytail: education articles are edited from the EMR (Sistem → Edukasi). Bodies are plain text;
+// the optional source link must be http(s) so it can never become a javascript: URL.
+const ARTICLE_ROLES = ["owner", "dokter", "admin"];
+const srcUrl = (u) => (/^https?:\/\//i.test(String(u || "").trim()) ? String(u).trim().slice(0, 500) : "");
+const slugify = (s) => String(s).toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "artikel";
+app.post("/api/articles", need(...ARTICLE_ROLES), bodyLimit, async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  const title = String(b.title || "").trim().slice(0, 140), body = String(b.body_md || "").trim().slice(0, 8000);
+  if (!title) return err(c, "invalid", "judul wajib", 400);
+  if (!body) return err(c, "invalid", "isi artikel wajib", 400);
+  let slug = slugify(title);
+  if (row("SELECT id FROM articles WHERE slug=?", slug)) slug += "-" + uid("x").slice(-5);
+  const id = uid("ar");
+  run("INSERT INTO articles(id,slug,title,category,author,body_md,age_tag,published_at,source_name,source_url) VALUES(?,?,?,?,?,?,?,?,?,?)",
+    id, slug, title, String(b.category || "stimulasi").slice(0, 30), String(b.author || c.get("user")?.name || "Tim Asakita").slice(0, 80),
+    body, String(b.age_tag || "").slice(0, 20), new Date().toISOString().slice(0, 10), String(b.source_name || "").slice(0, 80), srcUrl(b.source_url));
+  audit(c.get("user")?.id, "article_create", "article", id, { title });
+  return c.json({ id, slug }, 201);
+});
+app.put("/api/articles/:id", need(...ARTICLE_ROLES), bodyLimit, async (c) => {
+  const a = row("SELECT * FROM articles WHERE id=?", c.req.param("id"));
+  if (!a) return err(c, "not_found", "artikel tidak ada", 404);
+  const b = await c.req.json().catch(() => ({}));
+  const pick = (k, cur, max) => (b[k] === undefined ? cur : String(b[k] || "").slice(0, max));
+  const title = String(pick("title", a.title, 140)).trim(), body = String(pick("body_md", a.body_md, 8000)).trim();
+  if (!title) return err(c, "invalid", "judul wajib", 400);
+  if (!body) return err(c, "invalid", "isi artikel wajib", 400);
+  run("UPDATE articles SET title=?,category=?,author=?,body_md=?,age_tag=?,source_name=?,source_url=? WHERE id=?",
+    title, pick("category", a.category, 30), pick("author", a.author, 80), body, pick("age_tag", a.age_tag, 20),
+    pick("source_name", a.source_name, 80), b.source_url === undefined ? a.source_url : srcUrl(b.source_url), a.id);
+  audit(c.get("user")?.id, "article_update", "article", a.id, { title });
+  return c.json({ ok: true });
+});
+app.delete("/api/articles/:id", need(...ARTICLE_ROLES), (c) => {
+  const a = row("SELECT id,title FROM articles WHERE id=?", c.req.param("id"));
+  if (!a) return err(c, "not_found", "artikel tidak ada", 404);
+  run("DELETE FROM articles WHERE id=?", a.id);
+  audit(c.get("user")?.id, "article_delete", "article", a.id, { title: a.title });
+  return c.json({ ok: true });
+});
 app.get("/api/users", need("owner", "dokter"), (c) => c.json({ data: rows("SELECT id,name,email,role,status FROM users") }));
 app.post("/api/users", need("owner", "dokter"), bodyLimit, async (c) => {
   const b = await c.req.json();
