@@ -219,7 +219,7 @@ export default function App() {
     </nav>
     <main className="main">
       <Topbar me={me} />
-      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress /> : R.startsWith("/denver") ? <Progress initial="denver" /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
+      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress me={me} /> : R.startsWith("/denver") ? <Progress initial="denver" me={me} /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
       <div className="footer">Asakita EMR — {new Date().getFullYear()}</div>
     </main>
   </div>;
@@ -618,7 +618,7 @@ function GrowthChart({ curve, w = 560, h = 300 }: any) {
   </div>;
 }
 
-function Progress({ initial = "kurva" }: any) {
+function Progress({ initial = "kurva", me }: any) {
   const [kids, setKids] = useState<any[]>([]); const [cid, setCid] = useState("");
   const [m, setM] = useState<any[]>([]); const [progs, setProgs] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]); const [pt, setPt] = useState(""); const [pf, setPf] = useState("2x/minggu");
@@ -644,7 +644,7 @@ function Progress({ initial = "kurva" }: any) {
       <button role="tab" className={"tab" + (view === "kurva" ? " on" : "")} onClick={() => setView("kurva")}>Kurva &amp; milestone</button>
       <button role="tab" className={"tab" + (view === "denver" ? " on" : "")} onClick={() => setView("denver")}>Checklist Denver</button>
     </div>
-    {view === "denver" ? <Denver cid={cid} onChild={setCid} kids={kids} /> : <>
+    {view === "denver" ? <Denver cid={cid} onChild={setCid} kids={kids} canEdit={["owner", "dokter"].includes(me?.role)} /> : <>
     <div className="toolbar">
       <select className="inp" value={cid} onChange={(e) => setCid(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select>
       <div className="seg">{IND_TABS.map(([k, l]) => <button key={k} className={"seg-b" + (ind === k ? " on" : "")} onClick={() => setInd(k)}>{l}</button>)}</div>
@@ -683,7 +683,7 @@ function Progress({ initial = "kurva" }: any) {
 
 // ponytail: Denver II checklist — staff ticks each item (lulus / belum / tidak ada info).
 // Lives as a tab inside "Tumbuh kembang"; the child is picked by the parent page.
-function Denver({ cid: cidProp = "", onChild, kids: kidsProp }: any) {
+function Denver({ cid: cidProp = "", onChild, kids: kidsProp, canEdit }: any) {
   const [kids, setKids] = useState<any[]>(kidsProp || []);
   const [cid, setCid] = useState(cidProp);
   const [d, setD] = useState<any>(null); const [band, setBand] = useState("");
@@ -697,6 +697,14 @@ function Denver({ cid: cidProp = "", onChild, kids: kidsProp }: any) {
   const load = (id: string) => { if (!id) return; api.get("/api/denver?childId=" + id).then((r) => { setD(r); setBand((b) => b || r.bands.find((x: any) => x.isCurrent)?.key || r.bands[0]?.key || ""); }).catch(() => setD(null)); };
   useEffect(() => { load(cid); }, [cid]);
   const mark = (itemKey: string, status: string) => api.put("/api/denver", { child_id: cid, item_key: itemKey, status }).then(() => load(cid)).catch((e) => alert("Gagal (" + e.message + ")"));
+  // ponytail: manage the item lists (owner/dokter) — add / edit / remove
+  const [newText, setNewText] = useState(""); const [newDomain, setNewDomain] = useState("motor");
+  const addItem = () => {
+    if (!newText.trim()) return alert("Tulis dulu teks itemnya.");
+    api.post("/api/denver/items", { band_key: band, domain: newDomain, text: newText }).then(() => { setNewText(""); load(cid); }).catch((e) => alert("Gagal (" + e.message + ")"));
+  };
+  const editItem = (it: any, text: string) => api.put(`/api/denver/items/${it.id || it.key}`, { text }).then(() => load(cid)).catch((e) => alert("Gagal (" + e.message + ")"));
+  const delItem = (it: any) => { if (confirm("Hapus item ini dari checklist?")) api.del(`/api/denver/items/${it.id || it.key}`).then(() => load(cid)).catch((e) => alert("Gagal (" + e.message + ")")); };
   const shown = d?.bands?.find((b: any) => b.key === band) || d?.bands?.[0];
   const doms = ["motor", "language", "social", "fine"];
   const DOM_LABEL: Record<string, string> = { motor: "Motorik Kasar", language: "Bahasa", social: "Personal–Sosial", fine: "Motorik Halus–Adaptif" };
@@ -724,6 +732,25 @@ function Denver({ cid: cidProp = "", onChild, kids: kidsProp }: any) {
           </div>;
         })}
         {shown.isCurrent ? <p className="sub">Rentang usia saat ini — sentang di sini untuk skoring utama.</p> : <p className="sub">Rentang usia di atas/bawah — gunakan untuk menandai keterlambatan atau kemampuan lebih.</p>}
+      </div>}
+      {canEdit && <div className="card no-print" style={{ marginTop: 14 }}>
+        <h3 style={{ marginTop: 0 }}>Kelola item checklist</h3>
+        <p className="sub">Tambah, ubah, atau hapus item pada rentang usia <b>{shown?.label || "—"}</b>. Perubahan berlaku untuk semua pasien.</p>
+        <div className="toolbar" style={{ marginBottom: 10 }}>
+          <select className="inp" value={newDomain} onChange={(e) => setNewDomain(e.target.value)}>
+            {doms.map((k) => <option key={k} value={k}>{DOM_LABEL[k]}</option>)}
+          </select>
+          <input className="inp" style={{ flex: 1, minWidth: 220 }} placeholder="Teks item baru…" value={newText} onChange={(e) => setNewText(e.target.value)} />
+          <button className="btn btn-s" onClick={addItem}>+ Tambah item</button>
+        </div>
+        {(shown?.items || []).map((it: any) => <div className="denver-item" key={it.id || it.key}>
+          <input className="inp" style={{ flex: 1, minWidth: 220, height: 38 }} defaultValue={it.text}
+            onBlur={(e) => { const t = e.target.value.trim(); if (t && t !== it.text) editItem(it, t); }} />
+          <span className="denver-ops">
+            <span className="pill">{DOM_LABEL[it.domain]}</span>
+            <button className="btn btn-s" title="Hapus item" onClick={() => delItem(it)}>🗑</button>
+          </span>
+        </div>)}
       </div>}
     </>}
   </div>;

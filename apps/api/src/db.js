@@ -1,6 +1,7 @@
 import { mkdirSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { DEFAULT_PRICES } from "./constants.js";
+import { DENVER_BANDS } from "./denver-catalog.js";
 // vite can't statically resolve this (intentional) — Node runtime can
 const _spec = "node:" + "sqlite";
 const { DatabaseSync } = await import(_spec);
@@ -46,6 +47,7 @@ CREATE TABLE IF NOT EXISTS home_recommendations(id TEXT PRIMARY KEY, child_id TE
 CREATE TABLE IF NOT EXISTS audit_logs(id TEXT PRIMARY KEY, actor_id TEXT, action TEXT, entity TEXT, entity_id TEXT, at TEXT, meta TEXT);
 CREATE TABLE IF NOT EXISTS password_resets(email TEXT, token TEXT, at TEXT);
 CREATE TABLE IF NOT EXISTS denver_results(child_id TEXT, item_key TEXT, status TEXT, note TEXT, checked_at TEXT, checked_by TEXT, PRIMARY KEY(child_id,item_key));
+CREATE TABLE IF NOT EXISTS denver_items(id TEXT PRIMARY KEY, band_key TEXT, domain TEXT, text TEXT, sort INTEGER DEFAULT 0, created_at TEXT);
 CREATE TABLE IF NOT EXISTS home_programs(id TEXT PRIMARY KEY, child_id TEXT, session_id TEXT, title TEXT, instructions TEXT, created_at TEXT, created_by TEXT);
 CREATE TABLE IF NOT EXISTS home_program_items(id TEXT PRIMARY KEY, program_id TEXT, label TEXT, target_per_day REAL DEFAULT 1, note TEXT, done_dates TEXT DEFAULT '[]');
 CREATE TABLE IF NOT EXISTS service_prices(name TEXT PRIMARY KEY, price INTEGER);
@@ -64,5 +66,14 @@ export function migrate() {
   const np = db.prepare("SELECT COUNT(*) c FROM service_prices").get().c;
   if (!np) for (const [name, price] of Object.entries(DEFAULT_PRICES))
     db.prepare("INSERT OR IGNORE INTO service_prices(name,price) VALUES(?,?)").run(name, price);
+  // materialise the Denver checklist catalog once — after this the DB is the source of truth
+  // (clinicians can add/edit/remove items; deletions must survive reboots → no re-seed)
+  const ni = db.prepare("SELECT COUNT(*) c FROM denver_items").get().c;
+  if (!ni) {
+    const ins = db.prepare("INSERT INTO denver_items(id,band_key,domain,text,sort,created_at) VALUES(?,?,?,?,?,?)");
+    const now = new Date().toISOString();
+    for (const band of DENVER_BANDS)
+      band.items.forEach((it, i) => ins.run(it.key, band.key, it.domain, it.text, i + 1, now));
+  }
 }
 if (!existsSync("./data")) mkdirSync("./data", { recursive: true });

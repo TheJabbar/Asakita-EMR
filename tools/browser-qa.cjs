@@ -26,6 +26,8 @@ const EMRC = { email: "dokter@asakita.demo", pw: "prototype" };
 const PORTC = { email: "alya@example.com", pw: "prototype" };
 
 function watch(page, bucket) {
+  // ponytail: accept confirm() dialogs once, globally — two handlers would fight over the same dialog
+  page.on("dialog", (d) => d.accept().catch(() => {}));
   page.on("pageerror", (e) => bucket.push("pageerror: " + e.message));
   // the pre-login session probe answers 401 by design → not a defect
   page.on("console", (m) => { if (m.type() === "error" && !/status of 401/.test(m.text())) bucket.push("console: " + m.text().slice(0, 160)); });
@@ -104,7 +106,6 @@ async function emrSuite(browser) {
     const isLunas = await page.locator(".card table.tbl tbody tr:has-text('QA item') .pill:has-text('Lunas')").count();
     check("EMR: mark item paid", isLunas >= 1, isLunas + " paid");
     // clean up: remove every row this run created (the manual QA row + rows billed from sessions)
-    page.once("dialog", (d) => d.accept());
     const created = (await billIds()).filter((id) => !idsBefore.includes(id));
     for (const id of created) {
       await page.evaluate(async (id) => fetch(`/api/billing/items/${id}`, { method: "DELETE", credentials: "include" }), id);
@@ -166,6 +167,27 @@ async function emrSuite(browser) {
   check("EMR: denver item checked", on >= 1, on + " checked");
   const navHasDenver = await page.locator('.side a:has-text("Checklist Denver")').count();
   check("EMR: denver lives in Tumbuh Kembang (no separate nav item)", navHasDenver === 0, navHasDenver + " nav links");
+  // doctors manage the item lists
+  const manage = page.locator(".card:has-text('Kelola item checklist')");
+  check("EMR: denver item manager visible for dokter", (await manage.count()) === 1);
+  const NEWITEM = "Item QA " + Date.now();
+  await manage.locator("input[placeholder*='Teks item baru']").fill(NEWITEM);
+  await manage.locator("button:has-text('Tambah item')").click();
+  await page.waitForTimeout(1500);
+  const added = await page.locator(`.denver-item input[value="${NEWITEM}"]`).count();
+  check("EMR: add denver item", added === 1, added + " added");
+  // edit it
+  const row = page.locator(".denver-item", { has: page.locator(`input[value="${NEWITEM}"]`) });
+  await row.locator("input").fill(NEWITEM + " edit");
+  await row.locator("input").blur();
+  await page.waitForTimeout(1500);
+  const edited = await page.locator(`.denver-item input[value="${NEWITEM} edit"]`).count();
+  check("EMR: edit denver item", edited === 1);
+  // delete it
+  await page.locator(".denver-item", { has: page.locator(`input[value="${NEWITEM} edit"]`) }).locator("button[title='Hapus item']").click();
+  await page.waitForTimeout(1500);
+  const left = await page.locator(`.denver-item input[value="${NEWITEM} edit"]`).count();
+  check("EMR: delete denver item", left === 0, left + " left");
 
   // --- therapy + recipe ---
   await page.goto(BASE + "/emr/#/therapy");

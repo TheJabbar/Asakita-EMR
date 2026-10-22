@@ -1,81 +1,20 @@
-// ponytail: Denver II style developmental checklist — 4 domains x 8 age bands.
-// Catalog is clinical reference content (generic developmental milestones), stored server-side so
-// staff + portal always see the same item list.
+// ponytail: Denver II style checklist — the catalog lives in the database (denver_items) so
+// clinicians can add / edit / remove items; this module loads it, scores it and serves the API.
 import { Hono } from "hono";
-import { row, rows, run } from "./db.js";
+import { row, rows, run, uid } from "./db.js";
 import { err, need, STAFF, needOwnChild, audit } from "./guard.js";
+import { DENVER_DOMAINS, DENVER_BANDS, DENVER_STATUSES, STATUS_LABEL, bandForAge } from "./denver-catalog.js";
 
-export const DENVER_DOMAINS = [
-  { key: "motor", label: "Motorik Kasar", icon: "🏃" },
-  { key: "language", label: "Bahasa", icon: "💬" },
-  { key: "social", label: "Personal–Sosial", icon: "🤝" },
-  { key: "fine", label: "Motorik Halus–Adaptif", icon: "✋" },
-];
+export { DENVER_DOMAINS, DENVER_STATUSES, STATUS_LABEL, bandForAge };
 
-// [minMonths, maxMonths, label, { domain: [items…] }]
-const RAW = [
-  [0, 6, "0–6 bulan", {
-    motor: ["Mengangkat kepala ±45° saat tengkurap", "Angkat kepala dan dada dari lantai saat disokong", "Kepala stabil tegak 90°", "Membalik badan sendiri"],
-    language: ["Mengocek sederhana (a-a)", "Mengoceh lebih bervariasi (a-a, o-o, baba)", "Mengoceh dengan nada naik-turun", "Menyapa dengan suara atau tangan"],
-    social: ["Tersenyum sosial", "Merespons sentuhan dengan senyum", "Tertawa dengan suara", "Melirik orang yang mendekat", "Menyembunyikan muka (malu)"],
-    fine: ["Menggenggam benda di tangan", "Memindahkan benda dari satu tangan ke tangan lain", "Menggenggam dua benda bersamaan", "Mengambil benda dengan tangannya"],
-  }],
-  [6, 12, "6–12 bulan", {
-    motor: ["Duduk tanpa sandaran", "Merayap", "Berdiri sambil berpegangan", "Merangkak"],
-    language: ["Mengoceh 'ba-ba' atau 'ma-ma'", "Mengucapkan 1–2 kata", "Mengerti namanya dipanggil", "Meniru suara sederhana"],
-    social: ["Tersenyum pada orang asing", "Melambaikan tangan", "Bermain 'petak-petak' dengan orang dewasa", "Malu saat digoda"],
-    fine: ["Memindahkan benda antar tangan", "Makan sendiri dengan tangan", "Memasukkan benda ke wadah", "Melepaskan benda ke wadah"],
-  }],
-  [12, 18, "12–18 bulan", {
-    motor: ["Berjalan pada 12–15 bulan", "Berjalan mundur", "Berlari kecil", "Naik tangga dengan pegangan"],
-    language: ["Mengucapkan 3–5 kata", "Meniru kata", "Mengikuti instruksi sederhana", "Menunjuk benda yang diinginkan"],
-    social: ["Menunjuk untuk menunjukkan benda", "Menarik tangan untuk mendapat perhatian", "Melambaikan goodbye", "Makan dengan bantuan sedikit"],
-    fine: ["Menumpuk 2 balok", "Memegang krayon atau bolpoin", "Memutar benda beroda", "Menaruh benda di atas benda lain"],
-  }],
-  [18, 24, "18–24 bulan", {
-    motor: ["Berjalan naik tangga berpegangan", "Berjalan turun tangga berpegangan", "Melompat", "Berjalan berdampingan"],
-    language: ["Kosakata 10–20 kata", "Menggunakan frasa dua kata ('mama biru')", "Mengikuti perintah dua langkah", "Menunjukkan bagian tubuh"],
-    social: ["Makan sendiri dengan sendok", "Menyayap dengan sendok", "Mengedipkan tangan", "Menyebut diri 'aku'"],
-    fine: ["Menumpuk 4–6 balok", "Menggambar coretan", "Memutar knop", "Menarik mainan dengan tali"],
-  }],
-  [24, 36, "2–3 tahun", {
-    motor: ["Berlari dengan baik", "Melompat", "Naik tangga satu kaki per langkah", "Berjalan mundur"],
-    language: ["Kosakata minimal 50 kata", "Kalimat 3–4 kata", "Menggunakan kata ganti (aku, kamu)", "Menyanyi sederhana"],
-    social: ["Melatih toilet", "Dapat berpisah dari orang tua", "Bermain bersama anak lain", "Menunjukkan emosi (senang atau marah)"],
-    fine: ["Menggambar lingkaran", "Memotong kertas dengan gunting", "Menyusun puzzle 4–6 keping", "Membuka tutup botol"],
-  }],
-  [36, 48, "3–4 tahun", {
-    motor: ["Bersepeda", "Memanjat", "Berjalan pada balok", "Berlari lalu berhenti"],
-    language: ["Kalimat lengkap", "Menggunakan kata tanya (siapa, di mana)", "Menceritakan peristiwa", "Mengulang cerita sederhana"],
-    social: ["Bekerja sama dengan teman", "Membagi mainan", "Mengikuti aturan permainan", "Menunggu giliran"],
-    fine: ["Menggambar lingkaran dan silang", "Memotong dengan gunting", "Mengikat pita", "Menjumput benda kecil"],
-  }],
-  [48, 60, "4–5 tahun", {
-    motor: ["Melompat dengan satu kaki", "Memanjat tangga", "Bersepeda tanpa roda bantu", "Berjalan lurus tanpa goyang"],
-    language: ["Kosakata minimal 1.000 kata", "Menggunakan kata majemuk", "Menceritakan pengalaman", "Mengerti perintah berurutan"],
-    social: ["Bekerja sama menyelesaikan tugas", "Mengatasi konflik sederhana", "Menunjukkan rasa sulit (sulit atau mudah)", "Menunggu dengan sabar"],
-    fine: ["Menggambar manusia dengan 4 bagian", "Menjahit dengan jarum besar", "Menyalin pola", "Menggunakan gunting tepat"],
-  }],
-  [60, 72, "5–6 tahun", {
-    motor: ["Melompat dengan dua kaki", "Bersepedi dengan mahir", "Berjalan pada garis lurus", "Menari mengikuti irama"],
-    language: ["Menggunakan kata 'akan'", "Membaca kata sederhana", "Menyimak dan mengikuti cerita", "Bermain peran"],
-    social: ["Bekerja dalam kelompok", "Menghormati aturan bersama", "Menunjukkan empati", "Menyelesaikan tugas tanpa bantuan"],
-    fine: ["Menulis namanya sendiri", "Menggunting pola tepat", "Menjahit dengan benang", "Mengecek kesesuaian ukuran"],
-  }],
-];
-
-export const DENVER_BANDS = RAW.map(([minMonths, maxMonths, label, doms], bi) => ({
-  key: `b${bi + 1}`, minMonths, maxMonths, label,
-  items: Object.entries(doms).flatMap(([domain, texts]) =>
-    texts.map((text, i) => ({ key: `b${bi + 1}-${domain}-${i + 1}`, domain, text }))),
-}));
-
-export const DENVER_STATUSES = ["pass", "not_yet", "no_info"];
-export const STATUS_LABEL = { pass: "Lulus", not_yet: "Belum", no_info: "Tidak ada info" };
-
-export function bandForAge(ageMonths) {
-  if (ageMonths === null || ageMonths === undefined) return null;
-  return DENVER_BANDS.find((b) => ageMonths >= b.minMonths && ageMonths < b.maxMonths) || DENVER_BANDS.at(-1);
+// ponytail: bands = static structure (age ranges) + items from the database
+export function loadBands() {
+  const items = rows("SELECT id,band_key,domain,text,sort FROM denver_items ORDER BY sort, rowid");
+  if (!items.length) return DENVER_BANDS; // table not seeded yet → fall back to the bundled catalog
+  return DENVER_BANDS.map((b) => ({
+    ...b,
+    items: items.filter((i) => i.band_key === b.key).map((i) => ({ id: i.id, key: i.id, domain: i.domain, text: i.text })),
+  }));
 }
 
 // ponytail: simplified Denver-style scoring — per-domain progress in the current age band,
@@ -94,6 +33,7 @@ export function scoreDenver(bands, results, ageMonths) {
     for (const item of band.items) {
       const st = statusOf(item.key);
       const bucket = perDomain[item.domain];
+      if (!bucket) continue;
       if (isCurrent) {
         bucket.total++;
         if (st) bucket.checked++;
@@ -133,38 +73,81 @@ function resultsOf(childId) {
     out[r.item_key] = r;
   return out;
 }
+
 denverRouter.get("/api/denver", need(...STAFF), (c) => {
   const childId = c.req.query("childId");
   const child = row("SELECT id,dob,full_name FROM children WHERE id=?", childId || "-");
   if (!child) return err(c, "not_found", "pasien tidak ada", 404);
   const age = childAgeMonths(child.dob);
   const results = resultsOf(child.id);
+  const bands = loadBands();
   const current = bandForAge(age);
-  const bands = DENVER_BANDS.map((b) => ({
-    key: b.key, label: b.label, minMonths: b.minMonths, maxMonths: b.maxMonths,
-    isCurrent: current ? b.key === current.key : false,
-    items: b.items.map((it) => ({ ...it, status: results[it.key]?.status || null, note: results[it.key]?.note || "" })),
-  }));
-  return c.json({ childId: child.id, childName: child.full_name, ageMonths: age, bands, score: scoreDenver(DENVER_BANDS, results, age) });
+  return c.json({
+    childId: child.id, childName: child.full_name, ageMonths: age,
+    bands: bands.map((b) => ({
+      key: b.key, label: b.label, minMonths: b.minMonths, maxMonths: b.maxMonths,
+      isCurrent: current ? b.key === current.key : false,
+      items: b.items.map((it) => ({ ...it, status: results[it.key]?.status || null, note: results[it.key]?.note || "" })),
+    })),
+    score: scoreDenver(bands, results, age),
+  });
 });
+
+// ponytail: manage the item lists — add / edit / remove (owner + dokter only, audited)
+denverRouter.post("/api/denver/items", need("owner", "dokter"), async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  const bands = loadBands();
+  if (!bands.some((x) => x.key === b.band_key)) return err(c, "invalid", "rentang usia tidak dikenal", 400);
+  if (!DENVER_DOMAINS.some((d) => d.key === b.domain)) return err(c, "invalid", "domain tidak dikenal", 400);
+  if (!String(b.text || "").trim()) return err(c, "invalid", "teks item wajib", 400);
+  const id = uid("di");
+  const sort = row("SELECT COALESCE(MAX(sort),0)+1 s FROM denver_items WHERE band_key=?", b.band_key)?.s ?? 1;
+  run("INSERT INTO denver_items(id,band_key,domain,text,sort,created_at) VALUES(?,?,?,?,?,?)",
+    id, b.band_key, b.domain, String(b.text).trim().slice(0, 200), sort, new Date().toISOString());
+  audit(c.get("user").id, "denver_item_create", "denver_item", id, { band: b.band_key, domain: b.domain });
+  return c.json({ id }, 201);
+});
+
+denverRouter.put("/api/denver/items/:id", need("owner", "dokter"), async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  if (!String(b.text || "").trim()) return err(c, "invalid", "teks item wajib", 400);
+  const it = row("SELECT * FROM denver_items WHERE id=?", c.req.param("id"));
+  if (!it) return err(c, "not_found", "item tidak ada", 404);
+  run("UPDATE denver_items SET text=? WHERE id=?", String(b.text).trim().slice(0, 200), it.id);
+  audit(c.get("user").id, "denver_item_update", "denver_item", it.id, { band: it.band_key });
+  return c.json({ ok: true });
+});
+
+denverRouter.delete("/api/denver/items/:id", need("owner", "dokter"), (c) => {
+  const it = row("SELECT * FROM denver_items WHERE id=?", c.req.param("id"));
+  if (!it) return err(c, "not_found", "item tidak ada", 404);
+  run("DELETE FROM denver_results WHERE item_key=?", it.id); // checks of a removed item go with it
+  run("DELETE FROM denver_items WHERE id=?", it.id);
+  audit(c.get("user").id, "denver_item_delete", "denver_item", it.id, { band: it.band_key });
+  return c.json({ ok: true });
+});
+
 denverRouter.put("/api/denver", need("owner", "dokter", "terapis"), async (c) => {
   const b = await c.req.json().catch(() => ({}));
   if (!b.child_id || !b.item_key) return err(c, "invalid", "child_id + item_key wajib", 400);
   if (!DENVER_STATUSES.includes(b.status)) return err(c, "invalid", "status tidak dikenal", 400);
-  if (!DENVER_BANDS.some((band) => band.items.some((it) => it.key === b.item_key))) return err(c, "not_found", "item tidak dikenal", 404);
+  const known = loadBands().some((band) => band.items.some((it) => it.key === b.item_key));
+  if (!known) return err(c, "not_found", "item tidak dikenal", 404);
   run("INSERT OR REPLACE INTO denver_results(child_id,item_key,status,note,checked_at,checked_by) VALUES(?,?,?,?,?,?)",
     b.child_id, b.item_key, b.status, b.note || "", new Date().toISOString(), c.get("user").id);
   audit(c.get("user").id, "denver_check", "child", b.child_id, { item: b.item_key, status: b.status });
   return c.json({ ok: true });
 });
+
 // ponytail: portal sees the score and the checklist of the current age band — never clinician notes
 denverRouter.get("/api/portal/denver/:id", need("parent"), needOwnChild, (c) => {
   const child = row("SELECT id,dob FROM children WHERE id=?", c.req.param("id"));
   if (!child) return err(c, "not_found", "not found", 404);
   const age = childAgeMonths(child.dob);
   const results = resultsOf(child.id);
-  const score = scoreDenver(DENVER_BANDS, results, age);
-  const band = DENVER_BANDS.find((b) => b.label === score.band);
+  const bands = loadBands();
+  const score = scoreDenver(bands, results, age);
+  const band = bands.find((b) => b.label === score.band);
   const itemsByDomain = {};
   for (const d of DENVER_DOMAINS) itemsByDomain[d.key] = [];
   for (const it of band?.items || []) {

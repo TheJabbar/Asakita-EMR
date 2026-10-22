@@ -60,6 +60,26 @@ describe("unit: Denver checklist", () => {
     assert.equal((await app.request("/api/denver", { method: "PUT", headers: H(staff), body: JSON.stringify({ child_id: childId, item_key: "nope", status: "pass" }) })).status, 404);
     assert.equal((await app.request("/api/denver", { method: "PUT", headers: H(staff), body: JSON.stringify({ child_id: childId, item_key: "b1-motor-1", status: "maybe" }) })).status, 400);
   });
+  it("doctors manage the Denver item lists (add / edit / remove)", async () => {
+    const ter = await login("terapis@asakita.demo");
+    const band = (await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json()).bands[0].key;
+    // terapis may not change the instrument
+    assert.equal((await app.request("/api/denver/items", { method: "POST", headers: H(ter), body: JSON.stringify({ band_key: band, domain: "motor", text: "x" }) })).status, 403);
+    // dokter may
+    const created = await app.request("/api/denver/items", { method: "POST", headers: H(staff), body: JSON.stringify({ band_key: band, domain: "motor", text: "Item uji QA" }) });
+    assert.equal(created.status, 201);
+    const id = (await created.json()).id;
+    const list = await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json();
+    assert.ok(list.bands[0].items.some((i) => i.text === "Item uji QA"));
+    // edit
+    assert.equal((await app.request(`/api/denver/items/${id}`, { method: "PUT", headers: H(staff), body: JSON.stringify({ text: "Item uji QA (diubah)" }) })).status, 200);
+    const after = await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json();
+    assert.ok(after.bands[0].items.some((i) => i.text === "Item uji QA (diubah)"));
+    // remove
+    assert.equal((await app.request(`/api/denver/items/${id}`, { method: "DELETE", headers: H(staff) })).status, 200);
+    const gone = await (await app.request(`/api/denver?childId=${childId}`, { headers: H(staff) })).json();
+    assert.ok(!gone.bands[0].items.some((i) => i.text.startsWith("Item uji QA")));
+  });
   it("portal sees only the score of its own child", async () => {
     const own = await app.request(`/api/portal/denver/${childId}`, { headers: H(parent) });
     assert.equal(own.status, 404); // parent is not linked to this child
