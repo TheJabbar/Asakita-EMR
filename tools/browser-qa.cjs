@@ -28,7 +28,7 @@ const PORTC = { email: "alya@example.com", pw: "prototype" };
 function watch(page, bucket) {
   page.on("pageerror", (e) => bucket.push("pageerror: " + e.message));
   // the pre-login session probe answers 401 by design → not a defect
-  page.on("console", (m) => { if (m.type() === "error" && !/401 \(Unauthorized\)/.test(m.text())) bucket.push("console: " + m.text().slice(0, 160)); });
+  page.on("console", (m) => { if (m.type() === "error" && !/status of 401/.test(m.text())) bucket.push("console: " + m.text().slice(0, 160)); });
   page.on("requestfailed", (r) => bucket.push("reqfail: " + r.url().slice(0, 120) + " " + (r.failure()?.errorText || "")));
   // ponytail: catch bad API responses too (the app swallows them into alerts)
   page.on("response", async (r) => {
@@ -148,19 +148,21 @@ async function emrSuite(browser) {
   // --- therapy + recipe ---
   await page.goto(BASE + "/emr/#/therapy");
   await page.waitForSelector(".recipe-box", { timeout: 15000 });
-  const tOpts = await page.locator(".card select >> nth=0 >> option").allTextContents();
-  if (tOpts.length > 1) await page.selectOption(".card select >> nth=0", { index: 1 }).catch(() => {});
+  // the patient list is fetched async — wait until the options are there before selecting
+  await page.waitForFunction(() => document.querySelectorAll(".card select")[0]?.options.length > 1, null, { timeout: 20000 });
+  await page.selectOption(".card select >> nth=0", { index: 1 });
   await page.waitForTimeout(800);
-  await page.selectOption(".card select >> nth=1", { index: 1 }).catch(() => {});
+  await page.selectOption(".card select >> nth=1", { index: 1 });
   await page.fill('input[placeholder*="verbal"]', "QA target");
   await page.fill(".recipe-box textarea", "QA latihan 1\nQA latihan 2");
   await page.click('button:has-text("Simpan progress")');
-  await page.waitForTimeout(1500);
+  await page.waitForSelector(".tl .it:has-text('QA target')", { timeout: 20000 }).catch(() => {});
   const hasTarget = await page.locator(".tl .it:has-text('QA target')").count();
   check("EMR: therapy session saved", hasTarget >= 1);
-  const progItems = await page.locator(".card:has-text('QA latihan 1')").count();
-  check("EMR: home program (resep) created", progItems >= 1);
-  const dayCount = await page.locator(".card:has-text('QA latihan 1') .pill").first().innerText().catch(() => "");
+  // the program card is in the right column and carries the day counter
+  const progItems = await page.locator(".card:has-text('QA latihan 1') .pill:has-text('hari')").count();
+  check("EMR: home program (resep) created", progItems >= 1, progItems + " items");
+  const dayCount = await page.locator(".card:has-text('QA latihan 1') .pill:has-text('hari')").first().innerText().catch(() => "");
   check("EMR: program tracking shows days", /hari/.test(dayCount), dayCount);
 
   // --- schedule ---
@@ -179,7 +181,7 @@ async function emrSuite(browser) {
 
   // --- users ---
   await page.goto(BASE + "/emr/#/users");
-  await page.waitForSelector("table.tbl", { timeout: 15000 });
+  await page.waitForSelector("table.tbl tbody tr", { timeout: 20000 }).catch(() => {});
   const users = await page.locator("table.tbl tbody tr").count();
   check("EMR: users table", users > 0, users + " users");
 

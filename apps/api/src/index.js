@@ -38,7 +38,8 @@ app.use("*", async (c, next) => {
   await next();
   // ponytail: frontends inject all CSS via a JS-created <style> tag + load Google Fonts, so inline styles + font hosts must be allowed (scripts stay 'self'-only)
   // img-src needs data: (inline SVG icons, e.g. select arrows) and blob: (document downloads in the portal)
-  c.header("content-security-policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; script-src 'self' https://accounts.google.com; frame-src 'self' https://accounts.google.com; connect-src 'self' https://accounts.google.com");
+  // style-src also needs accounts.google.com — the Google Identity button injects its own stylesheet
+  c.header("content-security-policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; script-src 'self' https://accounts.google.com; frame-src 'self' https://accounts.google.com; connect-src 'self' https://accounts.google.com");
   c.header("x-frame-options", "DENY");
   c.header("x-content-type-options", "nosniff");
   const reqOrigin = c.req.header("origin") || "";
