@@ -7,6 +7,8 @@ apps/*/node_modules/
 packages/*/node_modules/
 apps/*/dist/
 packages/*/dist/
+# scratch dir for validating the container layout locally
+.dockersim/
 # local runtime data (sqlite, uploads, mail outbox) — never commit
 # ponytail: root-scoped — a bare "data/" also swallows apps/*/src/data (reference tables)
 /data/
