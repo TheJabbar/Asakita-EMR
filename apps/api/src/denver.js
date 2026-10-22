@@ -3,7 +3,7 @@
 // staff + portal always see the same item list.
 import { Hono } from "hono";
 import { row, rows, run } from "./db.js";
-import { err, need, STAFF, needOwnChild } from "./guard.js";
+import { err, need, STAFF, needOwnChild, audit } from "./guard.js";
 
 export const DENVER_DOMAINS = [
   { key: "motor", label: "Motorik Kasar", icon: "🏃" },
@@ -154,6 +154,7 @@ denverRouter.put("/api/denver", need("owner", "dokter", "terapis"), async (c) =>
   if (!DENVER_BANDS.some((band) => band.items.some((it) => it.key === b.item_key))) return err(c, "not_found", "item tidak dikenal", 404);
   run("INSERT OR REPLACE INTO denver_results(child_id,item_key,status,note,checked_at,checked_by) VALUES(?,?,?,?,?,?)",
     b.child_id, b.item_key, b.status, b.note || "", new Date().toISOString(), c.get("user").id);
+  audit(c.get("user").id, "denver_check", "child", b.child_id, { item: b.item_key, status: b.status });
   return c.json({ ok: true });
 });
 // ponytail: portal sees the score only — never raw clinician notes

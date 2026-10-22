@@ -81,6 +81,15 @@ Regenerasi tabel CDC (opsional, butuh unduhan CSV dari cdc.gov):
 node apps/api/scripts/build-cdc-data.mjs <folder-dengan-wtage.csv,statage.csv,bmiagerev.csv>
 ```
 
+## Production checklist (Render)
+
+- Deploy = push to `main` (Render Blueprint `render.yaml`, auto-deploy, health check `/api/healthz`).
+- Required env: `DATABASE_URL=file:/data/asakita.db`, `UPLOADS_DIR=/data/uploads`, `JWT_SECRET` (set in the dashboard — **not** in the repo), optional `GOOGLE_CLIENT_ID`, `FRONTEND_ORIGINS`.
+- Data lives on the Render disk (`asakita-data` → `/data`); back it up with `wrangler d1`-style dumps only for the Cloudflare path — for Render use a disk snapshot or `sqlite3 .backup`.
+- Schema changes must be additive: `migrate()` runs `CREATE TABLE IF NOT EXISTS` on every boot, so new tables appear on deploy; never rename or drop a column in place.
+- Reference data that the API reads at boot (e.g. `apps/api/src/reference/cdc-lms.json`) **must be committed** — check with `git ls-files apps/api/src/reference`.
+- After a deploy, run `BASE=https://asakita-emr.onrender.com node tools/browser-qa.cjs` (46 checks) before declaring the release good.
+
 ## Demo accounts (password: `prototype`)
 
 | Email | Role | Where |
@@ -173,6 +182,9 @@ Dockerfile  compose.yml  wrangler.toml  IMPLEMENTATION_PLAN.md
 | `ENOSPC` running vitest (Windows, full C: drive) | Redirect temp: `$env:TEMP="D:\temp\tmp"; $env:TMP="D:\temp\tmp"` then rerun |
 | Parent sees empty portal | Log in with a parent account linked via `parent_children` (staff accounts get 403 on `/api/portal/*` by design) |
 | Terapis/admin gets 403 writing SOAP | By design — only owner/dokter write SOAP (§3 of plan) |
+| Render build fails with `ENOENT .../reference/cdc-lms.json` | The CDC tables must be committed: `git ls-files apps/api/src/reference` (a bare `data/` ignore rule once hid them) |
+| EMR and portal log each other out in production | Both share one origin → the frontends send `X-Asakita-App: emr\|portal` and the API picks the matching cookie; don't remove that header |
+| Google login button looks unstyled | CSP must allow `style-src https://accounts.google.com` (GIS injects its own stylesheet) |
 
 ## Non-goals
 
