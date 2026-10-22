@@ -52,8 +52,11 @@ app.on("OPTIONS", "*", (c) => c.body(null, 204)); // 204 must carry null body or
 // --- helpers (see guard.js — one copy of the auth helpers) ---
 function setSession(c, user) { // cookie follows the calling app (via X-Asakita-App / Origin), never clobbers the other app
   const isPortal = appKind(c) === "portal";
+  // ponytail: Secure flag on https (Render sets x-forwarded-proto); localhost stays plain http
+  const proto = c.req.header("x-forwarded-proto") || (c.req.url || "").split(":")[0];
+  const secure = proto === "https";
   // ponytail: COOKIE_CROSS_SITE=1 for https tunnels (codespaces/vscode forwarding); localhost stays Lax
-  const cross = process.env.COOKIE_CROSS_SITE === "1" ? { sameSite: "None", secure: true } : {};
+  const cross = process.env.COOKIE_CROSS_SITE === "1" ? { sameSite: "None", secure: true } : { secure };
   setCookie(c, isPortal ? "asakita_portal" : "asakita", signToken({ sub: user.id, role: user.role }), { httpOnly: true, path: "/", maxAge: 7 * 86400, ...cross });
 }
 const bodyLimit = async (c, next) => { // ponytail: 1MB cap, 400 on abuse

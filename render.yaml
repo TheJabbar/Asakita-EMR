@@ -12,6 +12,9 @@ services:
         value: file:/data/asakita.db
       - key: UPLOADS_DIR
         value: /data/uploads
+      # ponytail: allowlist for CORS — prod origin first, dev ports for local work
+      - key: FRONTEND_ORIGINS
+        value: https://asakita-emr.onrender.com,http://localhost:5173,http://localhost:5174
       - key: JWT_SECRET
         sync: false
     disk:

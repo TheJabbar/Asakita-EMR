@@ -82,6 +82,12 @@ function evaluate(ind, sex, age, value, force) {
 }
 
 // --- build the curve payload for a child ---
+// ponytail: only WHO/CDC are valid overrides — anything else falls back to the age-based choice
+export function normalizeStandard(s) {
+  const v = String(s || "").toUpperCase();
+  return v === "WHO" || v === "CDC" ? v : undefined;
+}
+
 export function buildCurve(child, records, indicator, force) {
   const ind = INDICATORS[indicator];
   if (!ind) return null;
@@ -137,7 +143,7 @@ growthRouter.get("/api/growth/curve", need(...STAFF), (c) => {
   const child = rows("SELECT id,dob,gender FROM children WHERE id=?", childId || "-")[0];
   if (!child) return err(c, "not_found", "pasien tidak ada", 404);
   const records = rows("SELECT id,date,weight_kg,height_cm,head_cm FROM growth_records WHERE child_id=? ORDER BY date", child.id);
-  const curve = buildCurve(child, records, c.req.query("type") || "weight", c.req.query("standard") || undefined);
+  const curve = buildCurve(child, records, c.req.query("type") || "weight", normalizeStandard(c.req.query("standard")));
   if (!curve) return err(c, "invalid", "jenis grafik tidak dikenal", 400);
   return c.json(curve);
 });
@@ -146,7 +152,7 @@ growthRouter.get("/api/portal/growth/:id/curve", need("parent"), needOwnChild, (
   const child = rows("SELECT id,dob,gender FROM children WHERE id=?", c.req.param("id"))[0];
   if (!child) return err(c, "not_found", "not found", 404);
   const records = rows("SELECT id,date,weight_kg,height_cm,head_cm FROM growth_records WHERE child_id=? ORDER BY date", child.id);
-  const curve = buildCurve(child, records, c.req.query("type") || "weight", c.req.query("standard") || undefined);
+  const curve = buildCurve(child, records, c.req.query("type") || "weight", normalizeStandard(c.req.query("standard")));
   if (!curve) return err(c, "invalid", "jenis grafik tidak dikenal", 400);
   return c.json(curve);
 });
