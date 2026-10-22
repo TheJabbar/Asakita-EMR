@@ -173,7 +173,7 @@ async function emrSuite(browser) {
   const adminLink = page.locator('.card:has-text("Kelola checklist") a[href="#/checklist"]');
   check("EMR: tumbuh kembang links to the checklist admin", (await adminLink.count()) === 1);
   await adminLink.first().click();
-  await page.waitForSelector('.card:has-text("Rentang usia")', { timeout: 20000 });
+  await page.waitForSelector('.card:has-text("Rentang usia") .denver-item', { timeout: 20000 });
   const navItem = await page.locator('.side a:has-text("Checklist Denver")').count();
   check("EMR: checklist admin is a Sistem nav page", navItem === 1, navItem + " nav links");
   const bandRows = await page.locator('.card:has-text("Rentang usia") .denver-item').count();
