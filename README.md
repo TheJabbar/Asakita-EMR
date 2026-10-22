@@ -118,6 +118,20 @@ npm run test:security  # auth, RBAC matrix, IDOR, SOAP-leak scan, injection, upl
 npm run check          # tsc --noEmit
 ```
 
+Browser smoke test (end-to-end, real Chromium): walks the EMR and the parent portal — login, dashboard,
+patient tabs, billing + struk, growth curve with WHO/CDC bands, Denver checklist, therapy + resep,
+schedule, reports, users, and the portal pages (growth, screening, resep tracking, tagihan, artikel).
+Needs a local Edge/Chrome and `playwright-core` (dev-only, not a project dependency):
+
+```powershell
+npm i -D playwright-core
+node tools/browser-qa.cjs                                        # local instance on :8787
+BASE=https://asakita-emr.onrender.com node tools/browser-qa.cjs  # production
+```
+
+The script writes QA rows only in the browser flow it exercises (billing items are deleted again);
+it prints the ids of anything left behind so it can be cleaned up.
+
 Design note: API suites run on **`node:test` stdlib**, not vitest — vitest 2.1's bundler cannot load the experimental `node:sqlite` builtin. Don't move them back until the runner supports it (see `IMPLEMENTATION_PLAN.md` §12).
 
 ## Deploy to Cloudflare (prod)
