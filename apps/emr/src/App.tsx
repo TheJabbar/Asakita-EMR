@@ -211,8 +211,8 @@ export default function App() {
       {nav("/schedule", "▦", "Jadwal")}
       {/* ponytail: no SOAP nav — notes only make sense inside a visit, opened from Data Pasien → Catatan (route stays for deep links) */}
       {nav("/therapy", "⬢", "Terapi")}
-      {nav("/progress", "◭", "Tumbuh Kembang")}
-      {/* ponytail: the Denver checklist is a tab inside Tumbuh Kembang, not its own menu item */}
+      {/* ponytail: Tumbuh Kembang is a tab inside Data Pasien → patient, not its own menu item; #/progress route stays for deep links */}
+      {/* the Denver checklist is a tab inside Tumbuh Kembang, not its own menu item */}
       {nav("/reports", "▤", "Laporan")}
       {["owner", "dokter", "admin"].includes(me?.role) ? <><div className="side-sec">Sistem</div>{["owner", "dokter"].includes(me?.role) && nav("/checklist", "✓", "Checklist Denver")}{nav("/articles", "▣", "Edukasi")}{["owner", "dokter"].includes(me?.role) && nav("/users", "⚿", "Role & User")}</> : null}
       <div className="side-foot">Masuk sebagai <b>{me.role}</b><br /><button className="btn btn-s" style={{ marginTop: 10, width: "100%", color: "#fff", background: "#ffffff22", borderColor: "#ffffff33" }} onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include", headers: H }).then(() => setMe(null))}>Keluar</button></div>
@@ -356,7 +356,7 @@ function Patients({ route, me }: any) {
     try { const r = await api.post("/api/patients", { full_name }); location.hash = "#/patients/" + r.id; } catch (e: any) { alert("Gagal (" + e.message + ") — hanya dokter/admin/owner."); }
   };
   if (id && sel) {
-    const tabs = ["Ringkasan", "Data Pribadi", "Riwayat Medis", "Dokumen", "Billing", "Catatan"];
+    const tabs = ["Ringkasan", "Data Pribadi", "Riwayat Medis", "Tumbuh Kembang", "Dokumen", "Billing", "Catatan"];
     return <div><a href="#/patients" style={{ textDecoration: "none" }}>← kembali ke daftar</a>
       <div className="hero" style={{ marginTop: 12 }}><div className="hero-photo">🙂</div>
         <div><h2 className="serif" style={{ margin: 0, color: "#fff" }}>{sel.full_name}</h2><div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}><span className="pill ok">Pasien aktif</span><span className="pill">{sel.mr_number}</span><span className="pill">{ageID(sel.dob)}</span></div>
@@ -371,6 +371,7 @@ function Patients({ route, me }: any) {
           ? <EditChild key={id} sel={sel} onDone={() => api.get("/api/patients/" + id).then(setSel)} />
           : <table className="tbl"><tbody>{[["Nama lengkap", sel.full_name], ["Panggilan", sel.nickname], ["Lahir", sel.dob], ["Alamat", sel.address], ["Asuransi", sel.insurance]].map(([k, v]) => <tr key={k}><td style={{ color: "#6d7c74" }}>{k}</td><td><b>{v || "—"}</b></td></tr>)}</tbody></table>)}
         {tab === "Riwayat Medis" && <div><p><b>Riwayat kelahiran</b><br />{sel.history?.birth_history || "—"}</p><p><b>Catatan khusus</b><br />{sel.history?.notes || "—"}</p><p>Alergi: <span className="pill">{sel.history?.allergies || "—"}</span></p></div>}
+        {tab === "Tumbuh Kembang" && <Progress me={me} childId={id} />}
         {tab === "Dokumen" && <div>{(sel.documents || []).map((d: any) => <div key={d.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>📄 <b>{d.title}</b> <small style={{ color: "#6d7c74" }}>{d.kind} • {d.file_url}</small></div>)}{!sel.documents?.length && <div className="empty"><div className="big">📄</div>Belum ada dokumen. Upload akte / assessment / rujukan (PDF/JPG ≤10MB).</div>}<Upload childId={id} onDone={() => api.get("/api/patients/" + id).then(setSel)} /></div>}
         {tab === "Billing" && <BillingTab childId={id} child={sel} />}
         {tab === "Catatan" && <div><h4 style={{ margin: "0 0 6px" }}>Kunjungan & SOAP</h4>{visits.length ? visits.map((v: any) => <div key={v.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee", fontSize: 13.5, display: "flex", gap: 8, alignItems: "center" }}><div style={{ flex: 1, cursor: "pointer" }} onClick={() => (location.hash = "#/soap/" + v.id)}><b>{v.date}</b> • {v.visit_type} <span className={"pill " + (v.status === "final" ? "ok" : "warn")}>{v.status}{v.has_soap ? "" : " • kosong"}</span><br /><small style={{ color: "#2c5545", textDecoration: "underline" }}>{v.has_soap ? "Buka catatan →" : "Isi catatan →"}</small></div>{v.status !== "final" && ["owner", "dokter"].includes(me?.role) && <button className="btn btn-s" title="Hapus draft" onClick={() => { if (confirm("Hapus kunjungan draft ini? Tidak bisa dibatalkan.")) api.del("/api/visits/" + v.id).then(() => api.get("/api/visits?childId=" + id).then((r) => setVisits(r.data))).catch((e) => alert("Gagal (" + e.message + ")")); }}>🗑</button>}</div>) : "Belum ada kunjungan."}
@@ -618,15 +619,16 @@ function GrowthChart({ curve, w = 560, h = 300 }: any) {
   </div>;
 }
 
-function Progress({ initial = "kurva", me }: any) {
-  const [kids, setKids] = useState<any[]>([]); const [cid, setCid] = useState("");
+function Progress({ initial = "kurva", me, childId = "" }: any) {
+  const [kids, setKids] = useState<any[]>([]); const [cid, setCid] = useState(childId);
   const [m, setM] = useState<any[]>([]); const [progs, setProgs] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]); const [pt, setPt] = useState(""); const [pf, setPf] = useState("2x/minggu");
   const [ind, setInd] = useState("weight"); const [curve, setCurve] = useState<any>(null); const [std, setStd] = useState("");
   const [adding, setAdding] = useState(false);
   const [gf, setGf] = useState<any>({ date: new Date().toISOString().slice(0, 10), weight_kg: "", height_cm: "", head_cm: "" });
   const [view, setView] = useState(initial);
-  useEffect(() => { api.get("/api/patients").then((r) => { setKids(r.data); if (r.data[0] && !cid) setCid(r.data[0].id); }).catch(() => {}); api.get("/api/therapy-types").then((r) => { setTypes(r.data); if (r.data[0]) setPt(r.data[0].id); }).catch(() => {}); }, []);
+  useEffect(() => { if (childId) { setCid(childId); return; } api.get("/api/patients").then((r) => { setKids(r.data); if (r.data[0] && !cid) setCid(r.data[0].id); }).catch(() => {}); api.get("/api/therapy-types").then((r) => { setTypes(r.data); if (r.data[0]) setPt(r.data[0].id); }).catch(() => {}); }, []);
+  useEffect(() => { if (childId) setCid(childId); }, [childId]);
   const load = (id: string) => { if (!id) return; api.get("/api/milestones?childId=" + id).then((r) => setM(r.data)).catch(() => {}); api.get("/api/therapy-programs?childId=" + id).then((r) => setProgs(r.data)).catch(() => {}); };
   useEffect(() => { load(cid); }, [cid]);
   useEffect(() => { if (!cid) return setCurve(null); api.get(`/api/growth/curve?childId=${cid}&type=${ind}` + (std ? `&standard=${std}` : "")).then(setCurve).catch(() => setCurve(null)); }, [cid, ind, std]);
@@ -639,14 +641,15 @@ function Progress({ initial = "kurva", me }: any) {
     api.post("/api/growth", body).then(() => { setAdding(false); setGf({ ...gf, weight_kg: "", height_cm: "", head_cm: "" }); }).catch((e) => alert("Gagal (" + e.message + ")"));
   };
   const pts = curve?.points || [];
-  return <div><h2 className="serif">Tumbuh kembang</h2><p className="sub">Kurva pertumbuhan (acuan WHO &amp; CDC), checklist Denver, milestone, dan program terapi. <b>Format tanggal: DD-MM-YYYY</b> (contoh: 12-04-2024).</p>
+  return <div>{childId ? <p className="sub">Kurva pertumbuhan (acuan WHO &amp; CDC), checklist Denver, milestone, dan program terapi. <b>Format tanggal: DD-MM-YYYY</b> (contoh: 12-04-2024).</p> : <h2 className="serif">Tumbuh kembang</h2>}
+    {!childId && <p className="sub">Kurva pertumbuhan (acuan WHO &amp; CDC), checklist Denver, milestone, dan program terapi. <b>Format tanggal: DD-MM-YYYY</b> (contoh: 12-04-2024).</p>}
     <div className="tabs" role="tablist">
       <button role="tab" className={"tab" + (view === "kurva" ? " on" : "")} onClick={() => setView("kurva")}>Kurva &amp; milestone</button>
       <button role="tab" className={"tab" + (view === "denver" ? " on" : "")} onClick={() => setView("denver")}>Checklist Denver</button>
     </div>
     {view === "denver" ? <Denver cid={cid} onChild={setCid} kids={kids} canEdit={["owner", "dokter"].includes(me?.role)} /> : <>
     <div className="toolbar">
-      <select className="inp" value={cid} onChange={(e) => setCid(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select>
+      {!childId && <select className="inp" value={cid} onChange={(e) => setCid(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select>}
       <div className="seg">{IND_TABS.map(([k, l]) => <button key={k} className={"seg-b" + (ind === k ? " on" : "")} onClick={() => setInd(k)}>{l}</button>)}</div>
       <select className="inp" value={std} onChange={(e) => setStd(e.target.value)} title="Acuan">
         <option value="">Acuan otomatis</option><option value="WHO">WHO (0–5 th)</option><option value="CDC">CDC (5–19 th)</option>
