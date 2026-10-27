@@ -1,14 +1,33 @@
 // ponytail: one-file portal — mobile cards, bottom nav, plain fetch; curated endpoints only, never raw SOAP
 import React, { useEffect, useMemo, useState } from "react";
-import { growthGeometry, formatIDR, formatDMY, BAND_LABEL } from "@asakita/shared";
+import { growthGeometry, formatIDR, formatDMY, BAND_LABEL, dateLocal } from "@asakita/shared";
 // ponytail: same-origin default (Fly serves API+UI on one host); dev uses vite proxy below
 const API = (import.meta as any).env?.VITE_API_URL || "";
 // ponytail: tag every request with the app so the API picks the right session cookie (EMR + portal share one origin in prod)
 const H = { "X-Asakita-App": "portal" };
-const j = (r: Response) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); };
+// ponytail: 401 on an authed call → one guarded reload (App re-checks /api/me → Welcome);
+// login/register 401s stay local; network/5xx raise a banner instead of silently empty pages.
+const on401 = () => { if (sessionStorage.getItem("ak-401")) return; sessionStorage.setItem("ak-401", "1"); location.reload(); };
+const banner = (m: string) => window.dispatchEvent(new CustomEvent("api-error", { detail: m }));
+const j = (p: string, r: Response) => {
+  if (r.status === 401 && p !== "/api/me" && !p.startsWith("/api/auth/")) on401();
+  if (!r.ok) {
+    if (r.status >= 500) banner("Server bermasalah (HTTP " + r.status + ") — coba lagi sebentar.");
+    throw new Error(String(r.status));
+  }
+  return r.json();
+};
+let writes = 0; // any in-flight write disables buttons — no double-submit duplicates
+const call = (p: string, init: RequestInit, track: boolean) => {
+  if (track && ++writes === 1) document.body.classList.add("wbusy");
+  return fetch(API + p, { ...init, credentials: "include", headers: { ...H, ...(init.headers || {}) } })
+    .then((r) => j(p, r))
+    .catch((e: any) => { if (e instanceof TypeError) banner("Tidak bisa menghubungi server — periksa koneksi."); throw e; })
+    .finally(() => { if (track && --writes === 0) document.body.classList.remove("wbusy"); });
+};
 const api = {
-  get: (p: string) => fetch(API + p, { credentials: "include", headers: H }).then(j),
-  post: (p: string, b: any) => fetch(API + p, { method: "POST", credentials: "include", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
+  get: (p: string) => call(p, {}, false),
+  post: (p: string, b: any) => call(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }, true),
 };
 // ponytail: tiny client helpers; clinical truth stays server-side
 const ageID = (dob: string) => {
@@ -119,6 +138,9 @@ input.inp:focus,select.inp:focus{border-color:var(--green2);outline:none;box-sha
 @keyframes sh{to{background-position:-200% 0}}
 .art-body{font-size:12.5px;color:#43544d;line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .sheet{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:12px}
+/* in-flight writes lock every button (no double-submit); api-error banner = connection/5xx is never silent */
+.wbusy button,.wbusy .btn{pointer-events:none;opacity:.65}
+.api-banner{position:sticky;top:0;z-index:60;background:#b6493f;color:#fff;padding:8px 14px;font-size:13px;cursor:pointer}
 `;
 
 function useHash(): string {
@@ -134,10 +156,13 @@ function Nav({ r }: any) {
 export default function App() {
   const h = useHash();
   const [me, setMe] = useState<any>(null);
-  useEffect(() => { const s = document.createElement("style"); s.textContent = css; document.head.append(s); api.get("/api/me").then((r) => setMe((cur: any) => cur || (r.user?.role === "parent" ? r.user : null))).catch(() => {}); }, []);
+  const [banner, setBanner] = useState("");
+  useEffect(() => { const s = document.createElement("style"); s.textContent = css; document.head.append(s); api.get("/api/me").then((r) => { sessionStorage.removeItem("ak-401"); setMe((cur: any) => cur || (r.user?.role === "parent" ? r.user : null)); }).catch(() => {}); }, []);
+  useEffect(() => { const f = (e: any) => { setBanner(e.detail); setTimeout(() => setBanner(""), 6000); }; addEventListener("api-error", f); return () => removeEventListener("api-error", f); }, []);
   const R = h.replace("#", "");
-  if (R.startsWith("/welcome") || (!me && !R.startsWith("/education"))) return <Welcome onOk={setMe} />;
+  if (R.startsWith("/welcome") || (!me && !R.startsWith("/education"))) return <Welcome onOk={(u: any) => { sessionStorage.removeItem("ak-401"); setMe(u); }} />;
   return <div className="phone"><div className="pad">
+    {banner && <div className="api-banner" onClick={() => setBanner("")}>⚠ {banner} — klik untuk tutup</div>}
     {R === "/" || R === "" ? <Home me={me} /> : R.startsWith("/child") ? <Child route={R} /> : R.startsWith("/appointments") ? <Appts /> : R.startsWith("/growth") ? <Growth route={R} /> : R.startsWith("/resep") ? <Resep route={R} /> : R.startsWith("/tagihan") ? <Tagihan route={R} /> : R.startsWith("/screening") ? <Screen route={R} /> : R.startsWith("/therapy") ? <Therapy route={R} /> : R.startsWith("/sessions") ? <Session route={R} /> : R.startsWith("/education") ? <Edu /> : R.startsWith("/reports") ? <Rep /> : R.startsWith("/stimulation") ? <Stim /> : R.startsWith("/account") ? <Acct me={me} setMe={setMe} /> : <Home me={me} />}
     <Nav r={R} /></div></div>;
 }
@@ -239,7 +264,7 @@ function Appts() {
   useEffect(() => { load(); api.get("/api/portal/children").then((r) => { setKids(r.data); if (r.data[0]) setF((x: any) => ({ ...x, child_id: r.data[0].id })); }).catch(() => {}); }, []);
   useEffect(() => { load(tab); }, [tab]);
   const days = useMemo(() => { const out: any[] = []; const n = new Date(); for (let i = 0; i < 14; i++) { const d = new Date(n); d.setDate(n.getDate() + i); out.push(d); } return out; }, []);
-  const hasAppt = (d: Date) => list.some((a) => (a.starts_at || "").slice(0, 10) === d.toISOString().slice(0, 10));
+  const hasAppt = (d: Date) => list.some((a) => dateLocal(new Date(a.starts_at)) === dateLocal(d)); // both on the clinic's clock
   return <div>
     <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Jadwal kunjungan</h1><p>Konsultasi & terapi anak</p></div></div>
     <div className="tabs"><button className={"tab" + (tab === "upcoming" ? " on" : "")} onClick={() => setTab("upcoming")}>Akan datang ({tab === "upcoming" ? list.length : "…"})</button><button className={"tab" + (tab === "history" ? " on" : "")} onClick={() => setTab("history")}>Riwayat</button></div>
@@ -456,7 +481,7 @@ function Edu() {
     <input className="inp" placeholder="⌕ Cari artikel…" value={q} onChange={(e) => setQ(e.target.value)} />
     <div className="tabs">{["", "ASI", "MPASI", "stimulasi", "perilaku"].map((c) => <button key={c} className={"tab" + (cat === c ? " on" : "")} onClick={() => setCat(c)}>{c || "Semua"}</button>)}</div>
     {!shown.length ? <div className="empty"><div className="big">📚</div>Tidak ada artikel cocok.</div>
-      : shown.map((a: any) => <div className="row" key={a.id} onClick={() => setOpen(open === a.id ? "" : a.id)}><div className="thumb">{emo(a.category)}</div><div style={{ flex: 1 }}><h4>{a.title}</h4><p>{a.author} • <span className="pill green">{a.category}</span></p>{open === a.id ? <><p style={{ fontSize: 13, color: "#1d2b25", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{a.body_md}</p>{a.source_url && <a href={a.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, fontWeight: 700, color: "#275844" }}>Sumber: {a.source_name || "tautan asli"} ↗</a>}</> : <p className="art-body">{a.body_md}</p>}</div><span style={{ color: "#275844", fontWeight: 800 }}>{open === a.id ? "▾" : "▸"}</span></div>)}
+      : shown.map((a: any) => <div className="row" key={a.id} onClick={() => setOpen(open === a.id ? "" : a.id)}><div className="thumb">{emo(a.category)}</div><div style={{ flex: 1 }}><h4>{a.title}</h4><p>{a.author} • <span className="pill green">{a.category}</span></p>{open === a.id ? <><p style={{ fontSize: 13, color: "#1d2b25", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{a.body_md}</p>{/^https?:\/\//i.test(a.source_url || "") && <a href={a.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, fontWeight: 700, color: "#275844" }}>Sumber: {a.source_name || "tautan asli"} ↗</a>}</> : <p className="art-body">{a.body_md}</p>}</div><span style={{ color: "#275844", fontWeight: 800 }}>{open === a.id ? "▾" : "▸"}</span></div>)}
   </div>;
 }
 
@@ -471,16 +496,10 @@ function Rep() {
     open(url, "_blank");
     setMsg("PDF dibuka di tab baru.");
   };
-  const mail = async (id: string) => {
-    const to = prompt("Kirim ke email mana?", "");
-    if (!to) return;
-    await api.post(`/api/portal/reports/${id}/email`, { to });
-    setMsg("Tautan email dicatat — cek inbox Anda.");
-  };
   return <div>
     <div className="back-title"><button className="back" onClick={() => (location.hash = "#/")}>‹</button><div><h1>Laporan perkembangan</h1><p>Resume dokter</p></div></div>
     <div className="cover"><div className="cover-logo">♡</div><h2 style={{ color: "#275844", margin: "4px 0" }} className="serif">ASAKITA</h2><p style={{ margin: 0, color: "#6f7d75", fontSize: 12 }}>Child Health Center</p><hr style={{ border: 0, borderTop: "1px solid #eee0cb", margin: "16px 0" }} /><h3>Laporan perkembangan anak</h3><div className="child-photo" style={{ margin: "10px auto" }}>👶</div><div className="mini-grid"><div>Pertumbuhan</div><div>Perkembangan</div><div>Terapi</div><div>Rekomendasi</div></div></div>
-    {list.length ? list.slice(0, 3).map((r: any) => <div className="card" key={r.id}><b>{dID(r.created_at)}</b> • {r.period_start}–{r.period_end}<p style={{ fontSize: 13, color: "#4c5a52" }}>{r.summary}</p><div style={{ display: "flex", gap: 8 }}><button className="btn btn-soft btn-a" onClick={() => dl(r.id)}>Download PDF</button><button className="btn btn-o btn-a" onClick={() => mail(r.id)}>Kirim ke email</button></div></div>)
+    {list.length ? list.slice(0, 3).map((r: any) => <div className="card" key={r.id}><b>{dID(r.created_at)}</b> • {r.period_start}–{r.period_end}<p style={{ fontSize: 13, color: "#4c5a52" }}>{r.summary}</p><div style={{ display: "flex", gap: 8 }}><button className="btn btn-soft btn-a" onClick={() => dl(r.id)}>Download PDF</button></div></div>)
       : <div className="note">Laporan terbit per periode evaluasi. Minta ke front office bila butuh PDF untuk sekolah — versi portal selalu ringkasan kurasi, bukan rekam mentah.</div>}
     {msg && <div className="note" style={{ marginTop: 8 }}>{msg}</div>}
   </div>;
@@ -540,7 +559,7 @@ function Pass() {
     {m && <p style={{ fontSize: 13, color: m.startsWith("✓") ? "#237142" : "#b42318" }}>{m}</p>}
     <button className="btn btn-p" style={{ marginTop: 10 }} onClick={() => {
       if (f.b !== f.c) return setM("Konfirmasi tidak sama.");
-      api.post("/api/portal/change-password", { current: f.a, next: f.b }).then(() => { setM("✓ Password diganti."); setF({ a: "", b: "", c: "" }); }).catch(() => setM("Gagal — password lama salah atau baru kurang dari 6 karakter."));
+      api.post("/api/portal/change-password", { current: f.a, next: f.b }).then(() => { setM("✓ Password diganti — sesi lama ditutup, silakan masuk ulang."); setF({ a: "", b: "", c: "" }); }).catch(() => setM("Gagal — password lama salah atau baru kurang dari 6 karakter."));
     }}>Ganti password</button></div>;
 }
 

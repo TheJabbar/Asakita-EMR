@@ -1,21 +1,23 @@
 // ponytail: "resep" home program — created after a therapy session, tracked by the parent daily
 import { Hono } from "hono";
-import { row, rows, run, uid } from "./db.js";
+import { row, rows, run, uid, tx } from "./db.js";
 import { err, need, STAFF, needOwnChild } from "./guard.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function createHomeProgram({ child_id, session_id = null, title, instructions = "", items = [], userId = null }) {
   const id = uid("hp");
-  run("INSERT INTO home_programs(id,child_id,session_id,title,instructions,created_at,created_by) VALUES(?,?,?,?,?,?,?)",
-    id, child_id, session_id, title || "Program latihan di rumah", instructions, new Date().toISOString(), userId);
-  for (const it of items) {
-    const label = typeof it === "string" ? it : it.label;
-    if (!label) continue;
-    run("INSERT INTO home_program_items(id,program_id,label,target_per_day,note,done_dates) VALUES(?,?,?,?,?,?)",
-      uid("hpi"), id, label, Number((typeof it === "object" && it.target_per_day) || 1) || 1,
-      (typeof it === "object" && it.note) || "", "[]");
-  }
+  tx(() => {
+    run("INSERT INTO home_programs(id,child_id,session_id,title,instructions,created_at,created_by) VALUES(?,?,?,?,?,?,?)",
+      id, child_id, session_id, title || "Program latihan di rumah", instructions, new Date().toISOString(), userId);
+    for (const it of items) {
+      const label = typeof it === "string" ? it : it.label;
+      if (!label) continue;
+      run("INSERT INTO home_program_items(id,program_id,label,target_per_day,note,done_dates) VALUES(?,?,?,?,?,?)",
+        uid("hpi"), id, label, Number((typeof it === "object" && it.target_per_day) || 1) || 1,
+        (typeof it === "object" && it.note) || "", "[]");
+    }
+  });
   return id;
 }
 

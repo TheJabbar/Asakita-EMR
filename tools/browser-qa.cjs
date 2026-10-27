@@ -22,7 +22,7 @@ const check = (name, ok, detail = "") => {
   console.log((ok ? "PASS  " : "FAIL  ") + name + (detail ? "  — " + detail : ""));
 };
 
-const EMRC = { email: "dokter@asakita.demo", pw: "prototype" };
+const EMRC = { email: process.env.QA_EMR_EMAIL || "dokter@asakita.demo", pw: process.env.QA_EMR_PASSWORD || "prototype" };
 const PORTC = { email: "alya@example.com", pw: "prototype" };
 
 function watch(page, bucket) {

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { migrate, uid, row, run } from "./db.js";
-import { hashPassword } from "./auth.js";
+import { hashPassword, tempPassword } from "./auth.js";
 
 export function parseCsv(text) {
   text = String(text).replace(/^\uFEFF/, ""); // Excel BOM
@@ -47,6 +47,7 @@ export function importCsv(file) {
   const data = parseCsv(text);
   let imported = 0, skipped = 0;
   const errors = [];
+  const tempPws = []; // ponytail: no default password — each new parent gets a random one printed once for the operator
   for (const b of data) {
     try {
       const mr = (b.mr_number || "").trim();
@@ -60,8 +61,10 @@ export function importCsv(file) {
         let u = row("SELECT id FROM users WHERE email=?", email);
         if (!u) {
           const id = uid("u");
+          const pw = b.parent_password || tempPassword();
           run("INSERT INTO users(id,name,email,password_hash,role,created_at) VALUES(?,?,?,?,?,?)",
-            id, b.parent_name || email, email, hashPassword(b.parent_password || "prototype"), "parent", new Date().toISOString());
+            id, b.parent_name || email, email, hashPassword(pw), "parent", new Date().toISOString());
+          tempPws.push(`${email} → ${pw}`);
           parentId = uid("p");
           run("INSERT INTO parents(id,user_id,phone,address) VALUES(?,?,?,?)", parentId, id, b.parent_phone || "", b.parent_address || "");
           u = { id };
@@ -85,7 +88,7 @@ export function importCsv(file) {
       imported++;
     } catch (e) { errors.push({ line: b.__line, message: e.message }); }
   }
-  return { imported, skipped, errors };
+  return { imported, skipped, errors, tempPasswords: tempPws };
 }
 
 if (resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
@@ -95,6 +98,10 @@ if (resolve(process.argv[1] || "") === fileURLToPath(import.meta.url)) {
   try { out = importCsv(file); }
   catch (e) { console.error("gagal baca file:", e.message); process.exit(2); }
   console.log(`import ok: ${out.imported} anak baru, ${out.skipped} dilewati (duplikat mr_number)`);
+  if (out.tempPasswords.length) {
+    console.log("password sementara (bagikan ke ortu, minta ganti di portal):");
+    for (const l of out.tempPasswords) console.log("  " + l);
+  }
   for (const e of out.errors) console.error(`baris ${e.line}: ${e.message}`);
   process.exit(out.errors.length ? 1 : 0);
 }

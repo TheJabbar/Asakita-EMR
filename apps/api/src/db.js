@@ -1,4 +1,5 @@
 import { mkdirSync, existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { DEFAULT_PRICES } from "./constants.js";
 import { DENVER_BANDS } from "./denver-catalog.js";
@@ -20,13 +21,21 @@ export function getDb() {
   return _db;
 }
 export function resetDb() { _db = null; }
-export const uid = (p = "id") => `${p}_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+// ponytail: crypto UUIDs — Date.now+Math.random ids were guessable and collision-prone
+export const uid = (p = "id") => `${p}_${randomUUID()}`;
 export function rows(sql, ...params) { return getDb().prepare(sql).all(...params); }
 export function row(sql, ...params) { return getDb().prepare(sql).get(...params); }
 export function run(sql, ...params) { return getDb().prepare(sql).run(...params); }
+// multi-write steps succeed or fail together (SQLite allows no nesting — don't call tx inside tx)
+export function tx(fn) {
+  const db = getDb();
+  db.exec("BEGIN");
+  try { const r = fn(); db.exec("COMMIT"); return r; }
+  catch (e) { db.exec("ROLLBACK"); throw e; }
+}
 
 export const SCHEMA = `
-CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, name TEXT, email TEXT UNIQUE, password_hash TEXT, google_sub TEXT, role TEXT, status TEXT DEFAULT 'active', created_at TEXT);
+CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, name TEXT, email TEXT UNIQUE, password_hash TEXT, google_sub TEXT, role TEXT, status TEXT DEFAULT 'active', created_at TEXT, token_after TEXT);
 CREATE TABLE IF NOT EXISTS parents(id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), phone TEXT, address TEXT);
 CREATE TABLE IF NOT EXISTS children(id TEXT PRIMARY KEY, mr_number TEXT UNIQUE, full_name TEXT, nickname TEXT, dob TEXT, gender TEXT, blood_type TEXT, birth_weight_kg REAL, birth_length_cm REAL, address TEXT, insurance TEXT, status TEXT DEFAULT 'active', photo_url TEXT);
 CREATE TABLE IF NOT EXISTS parent_children(parent_id TEXT, child_id TEXT, relation TEXT, PRIMARY KEY(parent_id,child_id));
@@ -59,6 +68,9 @@ export function migrate() {
   db.exec(SCHEMA);
   if (!db.prepare("PRAGMA table_info(children)").all().some((c) => c.name === "created_at"))
     db.exec("ALTER TABLE children ADD COLUMN created_at TEXT"); // DBs created before this column; old rows stay NULL (excluded from monthly counts)
+  // ponytail: token_after powers session revocation on password change — old DBs get it here
+  if (!db.prepare("PRAGMA table_info(users)").all().some((c) => c.name === "token_after"))
+    db.exec("ALTER TABLE users ADD COLUMN token_after TEXT");
   // ponytail: education articles gained a source link; older DBs get the columns here
   const articleCols = db.prepare("PRAGMA table_info(articles)").all().map((c) => c.name);
   if (!articleCols.includes("source_name")) db.exec("ALTER TABLE articles ADD COLUMN source_name TEXT");

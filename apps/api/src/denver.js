@@ -1,7 +1,7 @@
 // ponytail: Denver II style checklist — the catalog lives in the database (denver_items) so
 // clinicians can add / edit / remove items; this module loads it, scores it and serves the API.
 import { Hono } from "hono";
-import { row, rows, run, uid } from "./db.js";
+import { row, rows, run, uid, tx } from "./db.js";
 import { err, need, STAFF, needOwnChild, audit } from "./guard.js";
 import { DENVER_DOMAINS, DENVER_BANDS, DENVER_STATUSES, STATUS_LABEL } from "./denver-catalog.js";
 
@@ -155,12 +155,14 @@ denverRouter.delete("/api/denver/bands/:id", need("owner", "dokter"), (c) => {
   const band = row("SELECT * FROM denver_bands WHERE id=?", c.req.param("id"));
   if (!band) return err(c, "not_found", "rentang usia tidak ada", 404);
   if (row("SELECT COUNT(*) c FROM denver_bands").c <= 1) return err(c, "invalid", "harus ada minimal satu rentang usia", 400);
-  // the items of the band and their checks go with it
-  for (const it of rows("SELECT id FROM denver_items WHERE band_key=?", band.id)) {
-    run("DELETE FROM denver_results WHERE item_key=?", it.id);
-    run("DELETE FROM denver_items WHERE id=?", it.id);
-  }
-  run("DELETE FROM denver_bands WHERE id=?", band.id);
+  // the items of the band and their checks go with it — atomically
+  tx(() => {
+    for (const it of rows("SELECT id FROM denver_items WHERE band_key=?", band.id)) {
+      run("DELETE FROM denver_results WHERE item_key=?", it.id);
+      run("DELETE FROM denver_items WHERE id=?", it.id);
+    }
+    run("DELETE FROM denver_bands WHERE id=?", band.id);
+  });
   audit(c.get("user").id, "denver_band_delete", "denver_band", band.id, { label: band.label });
   return c.json({ ok: true });
 });
@@ -193,8 +195,7 @@ denverRouter.put("/api/denver/items/:id", need("owner", "dokter"), async (c) => 
 denverRouter.delete("/api/denver/items/:id", need("owner", "dokter"), (c) => {
   const it = row("SELECT * FROM denver_items WHERE id=?", c.req.param("id"));
   if (!it) return err(c, "not_found", "item tidak ada", 404);
-  run("DELETE FROM denver_results WHERE item_key=?", it.id); // checks of a removed item go with it
-  run("DELETE FROM denver_items WHERE id=?", it.id);
+  tx(() => { run("DELETE FROM denver_results WHERE item_key=?", it.id); run("DELETE FROM denver_items WHERE id=?", it.id); }); // checks of a removed item go with it
   audit(c.get("user").id, "denver_item_delete", "denver_item", it.id, { band: it.band_key });
   return c.json({ ok: true });
 });

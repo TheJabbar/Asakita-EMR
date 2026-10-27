@@ -15,9 +15,30 @@ services:
       # ponytail: allowlist for CORS — prod origin first, dev ports for local work
       - key: FRONTEND_ORIGINS
         value: https://asakita-emr.onrender.com,http://localhost:5173,http://localhost:5174
+      # ponytail: prod seeds exactly one dokter account from these (values live in Render secrets / the local .env)
+      - key: DOKTER_EMAIL
+        sync: false
+      - key: DOKTER_PASSWORD
+        sync: false
       - key: JWT_SECRET
         sync: false
     disk:
       name: asakita-data
+      mountPath: /data
+      sizeGB: 1
+  # nightly DB backup — medical records must not live on a single disk without copies
+  - type: cron
+    name: asakita-backup
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "0 3 * * *" # 03:00 UTC = 10:00 WITA
+    dockerCommand: node ./api/src/backup.js /data/backups
+    envVars:
+      - key: DATABASE_URL
+        value: file:/data/asakita.db
+      - key: UPLOADS_DIR
+        value: /data/uploads
+    disk:
+      name: asakita-backup-data
       mountPath: /data
       sizeGB: 1

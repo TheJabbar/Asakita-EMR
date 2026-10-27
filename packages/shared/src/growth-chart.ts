@@ -13,10 +13,16 @@ export const BAND_TONE: Record<string, string> = {
   very_low: "bad", low: "warn", normal: "ok", high: "warn", very_high: "bad", unknown: "",
 };
 
-// ponytail: IDR money format — no Intl dependency, no rounding surprises
+// ponytail: IDR money format — no Intl dependency, no rounding surprises; bad input shows "—", never a fake Rp 0
 export function formatIDR(n: number): string {
-  const v = Math.round(Number(n) || 0);
-  return "Rp " + String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const v = Number(n);
+  if (!Number.isFinite(v)) return "—";
+  return "Rp " + String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+// ponytail: local calendar date — toISOString() is UTC, which is yesterday after midnight in WITA
+export function dateLocal(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // ponytail: the clinic writes dates DD-MM-YYYY (ISO in the DB, local display here)

@@ -1,17 +1,36 @@
 // ponytail: one-file EMR — hash routes, plain fetch, no router lib; CSS-injected design system (no new deps)
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { growthGeometry, formatIDR, formatDMY, BAND_LABEL } from "@asakita/shared";
+import { growthGeometry, formatIDR, formatDMY, BAND_LABEL, dateLocal } from "@asakita/shared";
 // ponytail: same-origin default (Fly serves API+UI on one host); dev uses vite proxy below
 const API = (import.meta as any).env?.VITE_API_URL || "";
 // ponytail: tag every request with the app so the API picks the right session cookie (EMR + portal share one origin in prod)
 const H = { "X-Asakita-App": "emr" };
-const j = (r: Response) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); };
+// ponytail: 401 on an authed call → one guarded reload (App re-checks /api/me → Login screen);
+// login/register 401s stay local; network/5xx raise a banner instead of silently empty pages.
+const on401 = () => { if (sessionStorage.getItem("ak-401")) return; sessionStorage.setItem("ak-401", "1"); location.reload(); };
+const banner = (m: string) => window.dispatchEvent(new CustomEvent("api-error", { detail: m }));
+const j = (p: string, r: Response) => {
+  if (r.status === 401 && p !== "/api/me" && !p.startsWith("/api/auth/")) on401();
+  if (!r.ok) {
+    if (r.status >= 500) banner("Server bermasalah (HTTP " + r.status + ") — coba lagi sebentar.");
+    throw new Error(String(r.status));
+  }
+  return r.json();
+};
+let writes = 0; // any in-flight write disables buttons — no double-submit duplicates
+const call = (p: string, init: RequestInit, track: boolean) => {
+  if (track && ++writes === 1) document.body.classList.add("wbusy");
+  return fetch(API + p, { ...init, credentials: "include", headers: { ...H, ...(init.headers || {}) } })
+    .then((r) => j(p, r))
+    .catch((e: any) => { if (e instanceof TypeError) banner("Tidak bisa menghubungi server — periksa koneksi."); throw e; })
+    .finally(() => { if (track && --writes === 0) document.body.classList.remove("wbusy"); });
+};
 const api = {
-  get: (p: string) => fetch(API + p, { credentials: "include", headers: H }).then(j),
-  post: (p: string, b: any) => fetch(API + p, { method: "POST", credentials: "include", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
-  put: (p: string, b: any) => fetch(API + p, { method: "PUT", credentials: "include", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
-  patch: (p: string, b: any) => fetch(API + p, { method: "PATCH", credentials: "include", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j),
-  del: (p: string) => fetch(API + p, { method: "DELETE", credentials: "include", headers: H }).then(j),
+  get: (p: string) => call(p, {}, false),
+  post: (p: string, b: any) => call(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }, true),
+  put: (p: string, b: any) => call(p, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }, true),
+  patch: (p: string, b: any) => call(p, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }, true),
+  del: (p: string) => call(p, { method: "DELETE" }, true),
 };
 // ponytail: client helpers only — server remains source of truth for ages/statuses
 const initials = (n: string) => (n || "?").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -188,6 +207,9 @@ table.tbl{width:100%;border-collapse:collapse}
  body.print-receipt #receipt-print,body.print-receipt #receipt-print *{visibility:visible!important}
  #receipt-print{position:absolute;left:0;top:0;width:100%;border:0;box-shadow:none;padding:24px}
 }
+/* in-flight writes lock every button (no double-submit); api-error banner = connection/5xx is never silent */
+.wbusy button,.wbusy .btn{pointer-events:none;opacity:.65}
+.api-banner{position:sticky;top:0;z-index:60;background:#b6493f;color:#fff;padding:8px 14px;font-size:13px;cursor:pointer}
 `;
 
 function useHash(): string {
@@ -199,8 +221,10 @@ function useHash(): string {
 export default function App() {
   const h = useHash();
   const [me, setMe] = useState<any>(null);
-  useEffect(() => { const s = document.createElement("style"); s.textContent = css; document.head.append(s); api.get("/api/me").then((r) => setMe((cur: any) => cur || (r.user && r.user.role !== "parent" ? r.user : null))).catch(() => {}); }, []);
-  if (!me) return <Login onOk={setMe} />;
+  const [banner, setBanner] = useState("");
+  useEffect(() => { const s = document.createElement("style"); s.textContent = css; document.head.append(s); api.get("/api/me").then((r) => { sessionStorage.removeItem("ak-401"); setMe((cur: any) => cur || (r.user && r.user.role !== "parent" ? r.user : null)); }).catch(() => {}); }, []);
+  useEffect(() => { const f = (e: any) => { setBanner(e.detail); setTimeout(() => setBanner(""), 6000); }; addEventListener("api-error", f); return () => removeEventListener("api-error", f); }, []);
+  if (!me) return <Login onOk={(u: any) => { sessionStorage.removeItem("ak-401"); setMe(u); }} />;
   const R = h.replace("#", "");
   const nav = (p: string, ic: string, l: string, sec?: string) => (<>{sec && <div className="side-sec">{sec}</div>}<a href={"#" + p} className={R === p || (p !== "/" && R.startsWith(p)) ? "on" : ""}><span className="ic">{ic}</span>{l}</a></>);
   return <div className="shell">
@@ -219,6 +243,7 @@ export default function App() {
     </nav>
     <main className="main">
       <Topbar me={me} />
+      {banner && <div className="api-banner" onClick={() => setBanner("")}>⚠ {banner} — klik untuk tutup</div>}
       <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress me={me} /> : R.startsWith("/checklist") ? <ChecklistAdmin /> : R.startsWith("/articles") ? <ArticlesAdmin /> : R.startsWith("/denver") ? <Progress initial="denver" me={me} /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
       <div className="footer">Asakita EMR — {new Date().getFullYear()}</div>
     </main>
@@ -226,10 +251,11 @@ export default function App() {
 }
 
 function Topbar({ me }: any) {
-  const [q, setQ] = useState(""); const [res, setRes] = useState<any>(null); const box = useRef<any>(null);
+  const [q, setQ] = useState(""); const [res, setRes] = useState<any>(null); const box = useRef<any>(null); const seq = useRef(0);
   useEffect(() => {
     if (q.trim().length < 2) { setRes(null); return; }
-    const t = setTimeout(() => api.get("/api/search?q=" + encodeURIComponent(q)).then(setRes).catch(() => {}), 250);
+    const my = ++seq.current;
+    const t = setTimeout(() => api.get("/api/search?q=" + encodeURIComponent(q)).then((r) => { if (my === seq.current) setRes(r); }).catch(() => {}), 250);
     return () => clearTimeout(t);
   }, [q]);
   useEffect(() => { const f = (e: any) => { if (box.current && !box.current.contains(e.target)) setRes(null); }; document.addEventListener("click", f); return () => document.removeEventListener("click", f); }, []);
@@ -298,7 +324,7 @@ function Login({ onOk }: any) {
         </div>
         {m && <div className="lg-err" role="alert">{m}</div>}
         {!m && <div className="lg-ok">Masuk dengan akun staff yang terdaftar di klinik.</div>}
-        <p style={{ textAlign: "right", marginTop: 12 }}><button className="linklike" onClick={() => { api.post("/api/auth/forgot", { email: e }); setOk("Jika email terdaftar, link reset dicatat di server."); }}>Lupa password?</button></p>
+        <p style={{ textAlign: "right", marginTop: 12 }}><button className="linklike" onClick={() => { api.post("/api/auth/forgot", { email: e }).then(() => setOk("Jika email terdaftar, link reset dicatat di server.")).catch(() => setOk("Gagal menghubungi server — coba lagi.")); }}>Lupa password?</button></p>
         {ok && <div className="lg-ok">{ok}</div>}
       </section>
     </main>
@@ -348,7 +374,14 @@ function Patients({ route, me }: any) {
   const [tab, setTab] = useState("Ringkasan"); const [q, setQ] = useState(""); const [sess, setSess] = useState<any[]>([]); const [visits, setVisits] = useState<any[]>([]);
   const id = route.split("/")[2];
   useEffect(() => { api.get("/api/patients").then((r) => setList(r.data)).catch(() => {}); }, []);
-  useEffect(() => { if (id) { api.get("/api/patients/" + id).then(setSel).catch(() => {}); api.get("/api/therapy-sessions?childId=" + id).then((r) => setSess(r.data)).catch(() => {}); api.get("/api/visits?childId=" + id).then((r) => setVisits(r.data)).catch(() => {}); } }, [id]);
+  useEffect(() => {
+    if (!id) return;
+    let live = true; // stale guard: quick patient-to-patient hops must not land old data
+    api.get("/api/patients/" + id).then((r) => { if (live) setSel(r); }).catch(() => {});
+    api.get("/api/therapy-sessions?childId=" + id).then((r) => { if (live) setSess(r.data); }).catch(() => {});
+    api.get("/api/visits?childId=" + id).then((r) => { if (live) setVisits(r.data); }).catch(() => {});
+    return () => { live = false; };
+  }, [id]);
   const filtered = list.filter((p) => (p.full_name + " " + p.mr_number).toLowerCase().includes(q.toLowerCase()));
   const add = async () => {
     const full_name = prompt("Nama lengkap anak?");
@@ -394,7 +427,7 @@ function BillingTab({ childId, child }: any) {
   const add = () => {
     if (!form.description) return alert("Isi deskripsi item.");
     const body: any = { child_id: childId, description: form.description, qty: Number(form.qty) || 1 };
-    if (form.unit_price !== "") body.unit_price = Number(form.unit_price);
+    if (form.unit_price !== "") body.unit_price = String(form.unit_price).replace(",", "."); // ID decimal comma — server validates the rest
     api.post("/api/billing/items", body).then(() => { setForm({ description: "", qty: 1, unit_price: "" }); load(); }).catch((e) => alert("Gagal (" + e.message + ")"));
   };
   const generate = () => api.post("/api/billing/generate", { child_id: childId }).then((r) => { setMsg(r.created ? r.created + " sesi terapi ditagihkan." : "Semua sesi terapi sudah tertagih."); load(); }).catch((e) => alert("Gagal (" + e.message + ")"));
@@ -475,7 +508,7 @@ function EditChild({ sel, onDone }: any) {
     if (!String(f.full_name || "").trim()) e.push("Nama lengkap wajib.");
     if (!/^[A-Za-z0-9-]{1,20}$/.test(String(f.mr_number || ""))) e.push("No. RM hanya huruf/angka/-.");
     if (f.dob && !/^\d{4}-\d{2}-\d{2}$/.test(f.dob)) e.push("Tgl lahir format YYYY-MM-DD.");
-    if (f.dob && f.dob > new Date().toISOString().slice(0, 10)) e.push("Tgl lahir tidak boleh masa depan.");
+    if (f.dob && f.dob > dateLocal()) e.push("Tgl lahir tidak boleh masa depan.");
     const w = String(f.birth_weight_kg ?? "").replace(",", ".");
     if (w !== "" && (Number.isNaN(Number(w)) || +w < 0.3 || +w > 10)) e.push("BB lahir 0,3–10 kg.");
     const l = String(f.birth_length_cm ?? "").replace(",", ".");
@@ -497,7 +530,9 @@ function EditChild({ sel, onDone }: any) {
 
 function Upload({ childId, onDone }: any) {
   const up = async (e: any) => {
-    const f = e.target.files[0]; if (!f) return;
+    const f = e.target.files[0];
+    e.target.value = ""; // re-selecting the same file must fire again
+    if (!f) return;
     const fd = new FormData(); fd.append("file", f); fd.append("title", f.name);
     const r = await fetch(API + `/api/patients/${childId}/documents`, { method: "POST", credentials: "include", headers: H, body: fd });
     if (!r.ok) alert("Upload ditolak (" + r.status + ") — hanya PDF/JPG/PNG ≤10MB.");
@@ -547,7 +582,7 @@ const ACTS = ["Imitasi suara", "Kontak mata", "Instruksi sederhana", "Kosakata d
 function Therapy({ me }: any) {
   const [list, setList] = useState<any[]>([]); const [types, setTypes] = useState<any[]>([]); const [kids, setKids] = useState<any[]>([]);
   const [progs, setProgs] = useState<any[]>([]);
-  const [f, setF] = useState<any>({ date: new Date().toISOString().slice(0, 10), acts: [] as string[], recipe: "", recipe_title: "Latihan di rumah" });
+  const [f, setF] = useState<any>({ date: dateLocal(), acts: [] as string[], recipe: "", recipe_title: "Latihan di rumah" });
   const load = (child = "") => {
     api.get("/api/therapy-sessions" + (child ? `?childId=${child}` : "")).then((r) => setList(r.data)).catch(() => {});
     if (child) api.get(`/api/home-programs?childId=${child}`).then((r) => setProgs(r.data)).catch(() => setProgs([]));
@@ -625,7 +660,7 @@ function Progress({ initial = "kurva", me, childId = "" }: any) {
   const [types, setTypes] = useState<any[]>([]); const [pt, setPt] = useState(""); const [pf, setPf] = useState("2x/minggu");
   const [ind, setInd] = useState("weight"); const [curve, setCurve] = useState<any>(null); const [std, setStd] = useState("");
   const [adding, setAdding] = useState(false);
-  const [gf, setGf] = useState<any>({ date: new Date().toISOString().slice(0, 10), weight_kg: "", height_cm: "", head_cm: "" });
+  const [gf, setGf] = useState<any>({ date: dateLocal(), weight_kg: "", height_cm: "", head_cm: "" });
   const [view, setView] = useState(initial);
   useEffect(() => { if (childId) { setCid(childId); return; } api.get("/api/patients").then((r) => { setKids(r.data); if (r.data[0] && !cid) setCid(r.data[0].id); }).catch(() => {}); api.get("/api/therapy-types").then((r) => { setTypes(r.data); if (r.data[0]) setPt(r.data[0].id); }).catch(() => {}); }, []);
   useEffect(() => { if (childId) setCid(childId); }, [childId]);
@@ -918,22 +953,30 @@ function ArticlesAdmin() {
 
 function Reports() {
   const [kids, setKids] = useState<any[]>([]); const [cid, setCid] = useState("");
-  const [pv, setPv] = useState<any>(null); const [msg, setMsg] = useState("");
+  const [pv, setPv] = useState<any>(null); const [msg, setMsg] = useState(""); const [rid, setRid] = useState("");
   useEffect(() => { api.get("/api/patients").then((r) => { setKids(r.data); if (r.data[0]) setCid(r.data[0].id); }).catch(() => {}); }, []);
-  const preview = () => api.get(`/api/reports/preview?childId=${cid}`).then(setPv).catch((e) => setMsg("Gagal (" + e.message + ")"));
-  const dl = async () => {
-    if (!pv) await preview();
-    const r = await api.post("/api/reports", { child_id: cid, summary: pv?.summary || "Ringkasan otomatis." });
-    window.open(API + `/api/reports/${r.id}/pdf`, "_blank");
-    auditNote("PDF dibuat.");
-  };
+  useEffect(() => { setPv(null); setRid(""); }, [cid]); // switching children must not reuse the old preview/report
+  const preview = () => api.get(`/api/reports/preview?childId=${cid}`).then((r) => { setPv(r); return r; }).catch((e) => { setMsg("Gagal (" + e.message + ")"); });
   const auditNote = (s: string) => setMsg(s + " " + new Date().toLocaleTimeString("id-ID"));
-  return <div><h2 className="serif">Laporan & dokumen</h2><p className="sub">Preview kurasi → PDF / email / cetak. {msg}</p>
+  const ensureReport = async (summary: string) => { // one report row per child+preview, reused by both buttons
+    if (rid) return rid;
+    const r = await api.post("/api/reports", { child_id: cid, summary });
+    setRid(r.id); return r.id;
+  };
+  const dl = async () => {
+    try {
+      const p = pv || await preview();
+      const id = await ensureReport(p.summary);
+      window.open(API + `/api/reports/${id}/pdf`, "_blank");
+      auditNote("PDF dibuat.");
+    } catch (e: any) { setMsg("Gagal (" + (e?.message || e) + ")"); }
+  };
+  return <div><h2 className="serif">Laporan & dokumen</h2><p className="sub">Preview kurasi → PDF / cetak. {msg}</p>
     <div className="toolbar"><select className="inp" value={cid} onChange={(e) => setCid(e.target.value)}>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select><button className="btn btn-s" onClick={preview}>Muat preview</button></div>
     <div className="grid two"><div className="print-card"><div style={{ textAlign: "center" }}><div style={{ letterSpacing: 5, color: "#2c5545", fontWeight: 800 }}>ASAKITA</div><small style={{ color: "#6d7c74" }}>Child Development & Therapy Center</small><h3 className="serif" style={{ margin: "10px 0" }}>Resume Perkembangan Anak</h3></div><hr style={{ border: 0, borderTop: "1px solid #eee2cb" }} />
       {pv ? <div style={{ fontSize: 14, lineHeight: 1.6 }}><p><b>Pasien:</b> {pv.childName}</p><p><b>Periode:</b> {pv.period}</p><p><b>Sesi:</b> {pv.sessions} • <b>BB terakhir:</b> {pv.lastWeight ?? "—"} kg</p><p><b>Ringkasan:</b> {pv.summary}</p><p><b>Rekomendasi:</b></p><ul>{pv.recommendations.map((r: string, i: number) => <li key={i}>{r}</li>)}</ul></div>
         : <div className="empty"><div className="big">▤</div>Pilih anak → muat preview.</div>}</div>
-      <div className="card no-print"><h3 style={{ marginTop: 0 }}>Aksi dokumen</h3><div style={{ display: "grid", gap: 10 }}><button className="btn btn-p" onClick={dl}>⬇ Download PDF</button><button className="btn btn-g" onClick={async () => { const r = await api.post("/api/reports", { child_id: cid, summary: pv?.summary || "Ringkasan." }); const to = prompt("Kirim ke email orang tua?"); if (to) api.post(`/api/reports/${r.id}/email`, { to }).then(() => auditNote("Email dicatat ke outbox.")); }}>✉ Kirim ke email ortu</button><button className="btn btn-g" onClick={() => window.print()}>🖨 Cetak</button></div></div></div></div>;
+      <div className="card no-print"><h3 style={{ marginTop: 0 }}>Aksi dokumen</h3><div style={{ display: "grid", gap: 10 }}><button className="btn btn-p" onClick={dl}>⬇ Download PDF</button><button className="btn btn-g" onClick={() => window.print()}>🖨 Cetak</button></div><p className="sub" style={{ marginBottom: 0 }}>Kirim via email menyusul — butuh penyedia email aktif.</p></div></div></div>;
 }
 
 function Users() {
@@ -943,5 +986,5 @@ function Users() {
   useEffect(() => { load(); }, []);
   return <div><h2 className="serif">Role & akses user</h2><p className="sub">Kelola akun staff dan hak akses.</p>
     {err ? <div className="card">{err}</div> : <><div className="card" style={{ padding: 6 }}><table className="tbl"><thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody>{list.map((u: any) => <tr key={u.id}><td><span className="avatar" style={{ display: "inline-grid", width: 30, height: 30, fontSize: 10, marginRight: 8, verticalAlign: "middle" }}>{initials(u.name)}</span><b>{u.name}</b></td><td>{u.email}</td><td><span className={"pill " + (u.role === "owner" || u.role === "dokter" ? "ok" : "")}>{u.role}</span></td><td>{u.status}</td></tr>)}</tbody></table></div>
-      <div className="card" style={{ marginTop: 14 }}><h3 style={{ marginTop: 0 }}>+ Tambah user</h3><div className="fgrid"><input className="inp" placeholder="Nama" onChange={(e) => setF({ ...f, name: e.target.value })} /><input className="inp" placeholder="email@…" onChange={(e) => setF({ ...f, email: e.target.value })} /></div><div className="fgrid" style={{ marginTop: 10 }}><select className="inp" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{["admin", "terapis", "dokter", "owner"].map((r) => <option key={r}>{r}</option>)}</select><input className="inp" placeholder="password (default prototype)" onChange={(e) => setF({ ...f, password: e.target.value })} /></div><button className="btn btn-s" style={{ marginTop: 12, background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={() => api.post("/api/users", f).then(load).catch((e) => alert("Gagal (" + e.message + ")"))}>Simpan user</button></div></>}</div>;
+      <div className="card" style={{ marginTop: 14 }}><h3 style={{ marginTop: 0 }}>+ Tambah user</h3><div className="fgrid"><input className="inp" placeholder="Nama" onChange={(e) => setF({ ...f, name: e.target.value })} /><input className="inp" placeholder="email@…" onChange={(e) => setF({ ...f, email: e.target.value })} /></div><div className="fgrid" style={{ marginTop: 10 }}><select className="inp" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{["admin", "terapis", "dokter", "owner"].map((r) => <option key={r}>{r}</option>)}</select><input className="inp" placeholder="password (min 6)" onChange={(e) => setF({ ...f, password: e.target.value })} /></div><button className="btn btn-s" style={{ marginTop: 12, background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={() => api.post("/api/users", f).then(load).catch((e) => alert("Gagal (" + e.message + ")"))}>Simpan user</button></div></>}</div>;
 }

@@ -42,7 +42,7 @@ First boot seeds demo accounts, three children (with BB/TB/LK growth curves), ap
 Bulk import real data from Excel: fill `apps/api/import-template.csv` (or Save As CSV from Excel — `,` and `;` separators both work), then:
 
 ```powershell
-npm run db:import -- pasien.csv   # parents + children + links; existing mr_number rows are skipped, password defaults to `prototype` unless the column sets one
+npm run db:import -- pasien.csv   # parents + children + links; existing mr_number rows are skipped; each new parent gets a random password printed once (column `parent_password` overrides)
 ```
 
 Data persists in the named volume `asakita-data` (`/data/asakita.db` + `/data/uploads`). To back it up:
@@ -84,13 +84,15 @@ node apps/api/scripts/build-cdc-data.mjs <folder-dengan-wtage.csv,statage.csv,bm
 ## Production checklist (Render)
 
 - Deploy = push to `main` (Render Blueprint `render.yaml`, auto-deploy, health check `/api/healthz`).
+- **Single dokter account.** Prod (`SEED_DEMO=0`, baked into the Docker image) seeds **no demo data**; the only staff account comes from `DOKTER_EMAIL` + `DOKTER_PASSWORD` (Render secrets). Demo accounts (`*@asakita.demo`, `alya@`, `budi@`, `abdul.jabbar@`) are deactivated (`status=inactive`) on every prod boot — delete their patient rows by hand if you don't want the demo family data at all.
+- **JWT_SECRET is mandatory in prod** — with `SEED_DEMO=0` the API refuses to boot on the default secret.
 - **Data persistence (check this first!).** The database must live on a Render **disk mounted at `/data`** — otherwise the SQLite file lives inside the container and *every deploy/restart wipes all records*. Attach the disk in the Render dashboard (Disk `asakita-data` → mount path `/data`), then confirm the boot log says `data directory is on a mounted volume`; if it says `NOT a mounted volume`, stop and fix the disk before using the service with real data.
+- **Backups run nightly** — the Blueprint includes an `asakita-backup` cron job (03:00 UTC / 10:00 WITA) writing `VACUUM INTO` copies to `/data/backups`. Check after the first deploy that a file appears there.
 - Manual backup (safe while the app runs): `npm run db:backup -w apps/api` → timestamped copy in `<db dir>/backups` via `VACUUM INTO`.
-- Required env: `DATABASE_URL=file:/data/asakita.db`, `UPLOADS_DIR=/data/uploads`, `JWT_SECRET` (set in the dashboard — **not** in the repo), optional `GOOGLE_CLIENT_ID`, `FRONTEND_ORIGINS`.
-- Data lives on the Render disk (`asakita-data` → `/data`); back it up with `wrangler d1`-style dumps only for the Cloudflare path — for Render use a disk snapshot or `sqlite3 .backup`.
+- Required env: `DATABASE_URL=file:/data/asakita.db`, `UPLOADS_DIR=/data/uploads`, `JWT_SECRET`, `DOKTER_EMAIL`, `DOKTER_PASSWORD` (all set in the dashboard — **not** in the repo), optional `GOOGLE_CLIENT_ID`, `FRONTEND_ORIGINS`.
 - Schema changes must be additive: `migrate()` runs `CREATE TABLE IF NOT EXISTS` on every boot, so new tables appear on deploy; never rename or drop a column in place.
 - Reference data that the API reads at boot (e.g. `apps/api/src/reference/cdc-lms.json`) **must be committed** — check with `git ls-files apps/api/src/reference`.
-- After a deploy, run `BASE=https://asakita-emr.onrender.com node tools/browser-qa.cjs` (46 checks) before declaring the release good.
+- After a deploy, run `BASE=https://asakita-emr.onrender.com QA_EMR_EMAIL=… QA_EMR_PASSWORD=… node tools/browser-qa.cjs` (46 checks) — on prod the dokter credentials come from the env vars, not the demo defaults.
 
 ## Roadmap — Supabase (planned)
 
@@ -108,7 +110,9 @@ The app currently runs on SQLite (`node:sqlite`, file in `/data`) — fine for t
 
 Schema itself is portable — the tables are plain columns; only the dialect above changes.
 
-## Demo accounts (password: `prototype`)
+## Demo accounts (local only — `SEED_DEMO` unset or `=1`, password: `prototype`)
+
+Prod runs with `SEED_DEMO=0` (from the Docker image): no demo accounts, no demo patients — just the single dokter from `DOKTER_EMAIL`/`DOKTER_PASSWORD`.
 
 | Email | Role | Where |
 |---|---|---|
@@ -128,7 +132,9 @@ Schema itself is portable — the tables are plain columns; only the dialect abo
 | `DATABASE_URL` | `file:./data/asakita.db` | SQLite file (`file::memory:` in tests) |
 | `UPLOADS_DIR` | `./data/uploads` | Document uploads (served from `/data` volume in container) |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | CORS origin (never `*` with credentials) |
-| `JWT_SECRET` | `dev-secret-change-me` | **Set in prod** — signs auth cookies |
+| `JWT_SECRET` | `dev-secret-change-me` | **Set in prod (mandatory — the API refuses to boot without it when `SEED_DEMO=0`)** — signs auth cookies |
+| `DOKTER_EMAIL` / `DOKTER_PASSWORD` | _(unset)_ | **Prod only** — the single dokter account seeded/refreshed on boot (see `.env` at the repo root; copy both into Render secrets) |
+| `SEED_DEMO` | _(unset = demo on)_ | `0` = production mode: no demo users/patients, demo accounts deactivated, only the env dokter. Docker image defaults to `0`; compose sets `1` |
 | `GOOGLE_CLIENT_ID` | _(unset)_ | Google OAuth client ID — enables the real "Masuk dengan Google" button (ID token verified server-side; unset = button hidden). Create at Google Cloud Console → APIs & Services → Credentials; add the app URL under Authorized JavaScript origins |
 | `LOG_LEVEL` | `info` | Log verbosity: `debug` (every request incl. pages/assets), `info` (API requests + boot, default), `warn`, `error`. Logs go to stdout → visible in Render Logs |
 | `VITE_API_URL` | `http://localhost:8787` | Baked into frontend builds |

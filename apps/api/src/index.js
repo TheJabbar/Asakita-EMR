@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { serve } from "@hono/node-server";
-import { mkdirSync, writeFileSync, readFileSync, appendFileSync, existsSync, statSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from "node:fs";
 import { basename, join, extname } from "node:path";
-import { getDb, migrate, uid, rows, row, run, dbPath } from "./db.js";
+import { getDb, migrate, uid, rows, row, run, dbPath, tx } from "./db.js";
 import { hashPassword, verifyPassword, signToken, verifyToken, verifyGoogleIdToken } from "./auth.js";
 import { log } from "./log.js";
 import { err, audit, me, need, STAFF, parentChildIds, needOwnChild, appKind } from "./guard.js";
@@ -13,6 +13,10 @@ import { denverRouter } from "./denver.js";
 import { homeRouter, createHomeProgram } from "./home.js";
 import { billingRouter } from "./billing.js";
 import { assertPersistent } from "./backup.js";
+
+const prodMode = process.env.SEED_DEMO === "0"; // set by the Docker image; dev/compose/tests run with demo data
+if (prodMode && process.env.NODE_ENV !== "test" && (!process.env.JWT_SECRET || process.env.JWT_SECRET === "dev-secret-change-me"))
+  throw new Error("JWT_SECRET wajib diset di produksi (render dashboard / env) — default secret = sesi bisa dipalsukan.");
 
 migrate();
 const app = new Hono();
@@ -50,6 +54,8 @@ app.use("*", async (c, next) => {
   c.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
 });
 app.on("OPTIONS", "*", (c) => c.body(null, 204)); // 204 must carry null body or undici throws
+// 500s previously returned Hono's bare text page with the stack lost — log it, answer JSON
+app.onError((e, c) => { log.error("unhandled error", { stack: String(e?.stack || e), path: c.req.path }); return err(c, "internal", "kesalahan server", 500); });
 
 // --- helpers (see guard.js — one copy of the auth helpers) ---
 function setSession(c, user) { // cookie follows the calling app (via X-Asakita-App / Origin), never clobbers the other app
@@ -67,19 +73,25 @@ const bodyLimit = async (c, next) => { // ponytail: 1MB cap, 400 on abuse
   await next();
 };
 
-// rate-limit login: 20 tries per 60s window → 429 (window decays so users can't lock forever)
+// rate-limit login + register + forgot: 20 tries per 60s window per client IP → 429.
+// ponytail: the LAST x-forwarded-for value is the one the proxy appended (client-controlled values come first) —
+// using the first would let an attacker rotate fake IPs past the limit.
 const bucket = new Map();
-app.use("/api/auth/login", async (c, next) => {
+const limited = async (c, next) => {
   if (process.env.NODE_ENV === "test" && c.req.header("x-test-nolimit")) return next();
-  const ip = c.req.header("x-forwarded-for") || "local";
+  const ip = (c.req.header("x-forwarded-for") || "local").split(",").map((s) => s.trim()).pop() || "local";
   const now = Date.now();
   let b = bucket.get(ip);
   if (!b || now > b.reset) b = { n: 0, reset: now + 60000 };
   b.n += 1;
   bucket.set(ip, b);
+  if (bucket.size > 10_000) bucket.clear(); // ponytail: memory cap — a sweep is fine for a login limiter
   if (b.n > 20) return err(c, "rate_limited", "terlalu banyak percobaan, tunggu 1 menit", 429);
   await next();
-});
+};
+app.use("/api/auth/login", limited);
+app.use("/api/auth/register-parent", limited); // unbounded account creation would bloat the DB
+app.use("/api/auth/forgot", limited);
 
 // --- auth ---
 app.get("/api/healthz", (c) => c.json({ ok: true }));
@@ -118,6 +130,7 @@ app.post("/api/auth/register-parent", bodyLimit, async (c) => {
 });
 app.post("/api/auth/forgot", bodyLimit, async (c) => {
   const { email } = await c.req.json().catch(() => ({})); // never enumerate
+  run("DELETE FROM password_resets WHERE at < ?", new Date(Date.now() - 7 * 864e5).toISOString()); // token rows are never read yet — keep the table from growing forever
   run("INSERT INTO password_resets(email,token,at) VALUES(?,?,?)", email || "-", uid("t"), new Date().toISOString());
   return c.json({ ok: true });
 });
@@ -160,8 +173,13 @@ app.get("/api/search", need(...STAFF), (c) => {
 // --- patients ---
 // ponytail: parent names inlined per child (one query, no N+1) — powers the Ortu column
 const PARENTS_OF = `(SELECT group_concat(u.name || ' (' || COALESCE(pc.relation,'') || ')', ', ') FROM parent_children pc JOIN parents p ON p.id=pc.parent_id JOIN users u ON u.id=p.user_id WHERE pc.child_id=children.id)`;
-app.get("/api/patients", need(...STAFF), (c) =>
-  c.json({ data: rows(`SELECT children.*, ${PARENTS_OF} AS parent_names FROM children ORDER BY full_name LIMIT 100`), total: row("SELECT COUNT(*) c FROM children").c }));
+// ponytail: child_id must reference a real child — the schema has no FK on these tables, so the API is the boundary
+const childOk = (id) => !!row("SELECT id FROM children WHERE id=?", id);
+const LIMITS = { weight_kg: [0.5, 150], height_cm: [20, 230], head_cm: [20, 70] }; // sanity ranges — same style as birth weight
+app.get("/api/patients", need(...STAFF), (c) => {
+  const lim = Math.min(Math.max(Number(c.req.query("limit")) || 200, 1), 500);
+  return c.json({ data: rows(`SELECT children.*, ${PARENTS_OF} AS parent_names FROM children ORDER BY full_name LIMIT ${lim}`), total: row("SELECT COUNT(*) c FROM children").c });
+});
 app.post("/api/patients", need("owner", "dokter", "admin"), bodyLimit, async (c) => {
   const b = await c.req.json();
   if (!b.full_name) return err(c, "invalid", "full_name wajib", 400);
@@ -223,9 +241,11 @@ app.put("/api/patients/:id", need("owner", "dokter", "admin"), bodyLimit, async 
   run(`UPDATE children SET ${sets.join(",")} WHERE id=?`, ...vals);
   return c.json({ ok: true });
 });
-// upload: pdf/jpg/png ≤10MB, basename-sanitized
+// upload: pdf/jpg/png ≤10MB, basename-sanitized; body length capped BEFORE buffering (chunked/no-header → reject)
 app.post("/api/patients/:id/documents", need("owner", "dokter", "admin"), async (c) => {
   const id = c.req.param("id");
+  const len = Number(c.req.header("content-length") || 0);
+  if (!len || len > 10 * 1024 * 1024 + 4096) return err(c, "too_large", "maks 10MB", 400);
   const fd = await c.req.parseBody();
   const f = fd.file;
   if (!f || typeof f === "string") return err(c, "invalid", "file wajib", 400);
@@ -277,6 +297,7 @@ app.get("/api/visits", need(...STAFF), (c) => {
   return c.json({ data: rows(sql + " ORDER BY v.date DESC LIMIT 50", ...p) });
 });app.post("/api/visits", need("owner", "dokter"), bodyLimit, async (c) => {
   const b = await c.req.json();
+  if (!b.child_id || !childOk(b.child_id)) return err(c, "invalid", "child_id tidak dikenal", 400);
   const id = uid("v");
   run("INSERT INTO visits(id,child_id,appointment_id,date,visit_type,status) VALUES(?,?,?,?,?,?)", id, b.child_id, b.appointment_id || null, b.date || new Date().toISOString().slice(0, 10), b.visit_type || "Konsultasi", "draft");
   return c.json({ id }, 201);
@@ -301,8 +322,7 @@ app.delete("/api/visits/:id", need("owner", "dokter"), async (c) => {
   const v = row("SELECT * FROM visits WHERE id=?", c.req.param("id"));
   if (!v) return err(c, "not_found", "visit tidak ada", 404);
   if (v.status === "final") return err(c, "locked", "SOAP final tidak bisa dihapus", 409);
-  run("DELETE FROM soap_notes WHERE visit_id=?", v.id);
-  run("DELETE FROM visits WHERE id=?", v.id);
+  tx(() => { run("DELETE FROM soap_notes WHERE visit_id=?", v.id); run("DELETE FROM visits WHERE id=?", v.id); });
   audit(c.get("user").id, "visit_delete", "visit", v.id, { child_id: v.child_id });
   return c.json({ ok: true });
 });
@@ -317,7 +337,7 @@ app.get("/api/therapy-sessions", need(...STAFF), (c) => {
 });
 app.post("/api/therapy-sessions", need("owner", "dokter", "terapis"), bodyLimit, async (c) => {
   const b = await c.req.json();
-  if (!b.child_id || !b.type_id) return err(c, "invalid", "child_id + type_id wajib", 400);
+  if (!b.child_id || !childOk(b.child_id) || !b.type_id) return err(c, "invalid", "child_id + type_id wajib (child harus ada)", 400);
   const id = uid("s");
   run("INSERT INTO therapy_sessions(id,child_id,type_id,date,target,activities,response,therapist_id,home_recommendation) VALUES(?,?,?,?,?,?,?,?,?)",
     id, b.child_id, b.type_id, b.date || new Date().toISOString().slice(0, 10), b.target || "", JSON.stringify(b.activities || []), b.response || "", c.get("user").id, b.home_recommendation || "");
@@ -333,29 +353,42 @@ app.delete("/api/therapy-sessions/:id", need("owner", "dokter"), (c) => {
   const s = row("SELECT * FROM therapy_sessions WHERE id=?", c.req.param("id"));
   if (!s) return err(c, "not_found", "sesi terapi tidak ada", 404);
   const prog = row("SELECT id FROM home_programs WHERE session_id=?", s.id);
-  if (prog) {
-    run("DELETE FROM home_program_items WHERE program_id=?", prog.id);
-    run("DELETE FROM home_programs WHERE id=?", prog.id);
-  }
-  run("DELETE FROM therapy_sessions WHERE id=?", s.id);
+  tx(() => {
+    if (prog) { run("DELETE FROM home_program_items WHERE program_id=?", prog.id); run("DELETE FROM home_programs WHERE id=?", prog.id); }
+    run("DELETE FROM therapy_sessions WHERE id=?", s.id);
+  });
   audit(c.get("user").id, "therapy_delete", "session", s.id, { child_id: s.child_id });
   return c.json({ ok: true });
-});app.post("/api/growth", need("owner", "dokter", "terapis"), bodyLimit, async (c) => {
-  const b = await c.req.json(); const id = uid("g");
+});
+app.post("/api/growth", need("owner", "dokter", "terapis"), bodyLimit, async (c) => {
+  const b = await c.req.json();
+  if (!b.child_id || !childOk(b.child_id)) return err(c, "invalid", "child_id tidak dikenal", 400);
+  for (const [k, [lo, hi]] of Object.entries(LIMITS)) {
+    if (b[k] === undefined || b[k] === null || b[k] === "") { b[k] = null; continue; }
+    const n = Number(String(b[k]).replace(",", "."));
+    if (!Number.isFinite(n) || n < lo || n > hi) return err(c, "invalid", `nilai ${k.replace("_kg", " (kg)").replace("_cm", " (cm)")} di luar batas wajar (${lo}–${hi})`, 400);
+    b[k] = n;
+  }
+  const id = uid("g");
   run("INSERT INTO growth_records(id,child_id,date,weight_kg,height_cm,head_cm,recorded_by) VALUES(?,?,?,?,?,?,?)",
     id, b.child_id, b.date || new Date().toISOString().slice(0, 10), b.weight_kg ?? null, b.height_cm ?? null, b.head_cm ?? null, c.get("user").id);
   return c.json({ id }, 201);
 });
 app.get("/api/milestones", need(...STAFF), (c) => c.json({ data: rows("SELECT * FROM milestones WHERE child_id=?", c.req.query("childId") || "-") }));
+const MILESTONE_STATUS = ["achieved", "in_progress", "concern"];
 app.put("/api/milestones", need("owner", "dokter", "terapis"), bodyLimit, async (c) => {
   const b = await c.req.json();
-  run("INSERT OR REPLACE INTO milestones(child_id,key,label,status,updated_at) VALUES(?,?,?,?,?)", b.child_id, b.key, b.label || b.key, b.status, new Date().toISOString());
+  if (!b.child_id || !childOk(b.child_id)) return err(c, "invalid", "child_id tidak dikenal", 400);
+  if (!MILESTONE_STATUS.includes(b.status)) return err(c, "invalid", "status tidak dikenal", 400);
+  run("INSERT OR REPLACE INTO milestones(child_id,key,label,status,updated_at) VALUES(?,?,?,?,?)", b.child_id, String(b.key).slice(0, 60), String(b.label || b.key).slice(0, 80), b.status, new Date().toISOString());
   return c.json({ ok: true });
 });
 app.get("/api/screenings", need(...STAFF), (c) => c.json({ data: rows("SELECT * FROM screenings WHERE child_id=? ORDER BY date DESC", c.req.query("childId") || "-") }));
 app.post("/api/screenings", need("owner", "dokter", "terapis"), bodyLimit, async (c) => {
-  const b = await c.req.json(); const id = uid("sc");
-  run("INSERT INTO screenings(id,child_id,date,domain,result,note) VALUES(?,?,?,?,?,?)", id, b.child_id, b.date || new Date().toISOString().slice(0, 10), b.domain, b.result || "", b.note || "");
+  const b = await c.req.json();
+  if (!b.child_id || !childOk(b.child_id)) return err(c, "invalid", "child_id tidak dikenal", 400);
+  const id = uid("sc");
+  run("INSERT INTO screenings(id,child_id,date,domain,result,note) VALUES(?,?,?,?,?,?)", id, b.child_id, b.date || new Date().toISOString().slice(0, 10), String(b.domain || "").slice(0, 40), String(b.result || "").slice(0, 60), String(b.note || "").slice(0, 500));
   return c.json({ id }, 201);
 });
 app.get("/api/therapy-programs", need(...STAFF), (c) => c.json({ data: rows("SELECT p.*,t.name type_name FROM therapy_programs p LEFT JOIN therapy_types t ON t.id=p.type_id WHERE child_id=?", c.req.query("childId") || "-") }));
@@ -387,11 +420,8 @@ app.get("/api/reports/:id/pdf", need(...STAFF), (c) => {
   c.header("content-type", "application/pdf");
   return c.body(pdfBytes(`Laporan ${r.full_name || ""}`, [r.summary, (r.period_start || "") + " - " + (r.period_end || "")]));
 });
-app.post("/api/reports/:id/email", need(...STAFF), bodyLimit, async (c) => {
-  const { to } = await c.req.json();
-  appendFileSync("./data/outbox.json", JSON.stringify({ to, report: c.req.param("id"), at: new Date().toISOString() }) + "\n");
-  return c.json({ ok: true });
-});
+// ponytail: report email buttons + /api/*/email routes were removed — they wrote to a local
+// outbox file and never sent anything; wire a real mail provider before re-adding them.
 app.get("/api/articles", async (c) => {
   const { category, q } = c.req.query(); let sql = "SELECT * FROM articles WHERE 1=1"; const p = [];
   if (category) { sql += " AND category=?"; p.push(category); }
@@ -446,8 +476,12 @@ app.get("/api/users", need("owner", "dokter"), (c) => c.json({ data: rows("SELEC
 app.post("/api/users", need("owner", "dokter"), bodyLimit, async (c) => {
   const b = await c.req.json();
   if (!b.email?.includes("@")) return err(c, "invalid", "email wajib", 400);
+  if (!["owner", "dokter", "terapis", "admin"].includes(b.role)) return err(c, "invalid", "role tidak dikenal", 400);
+  if (!b.password || String(b.password).length < 6) return err(c, "invalid", "password (min 6 karakter) wajib", 400);
+  if (row("SELECT id FROM users WHERE email=?", b.email)) return err(c, "exists", "email terdaftar", 409);
   const id = uid("u");
-  run("INSERT INTO users(id,name,email,password_hash,role,created_at) VALUES(?,?,?,?,?,?)", id, b.name || b.email, b.email, hashPassword(b.password || "prototype"), b.role || "admin", new Date().toISOString());
+  run("INSERT INTO users(id,name,email,password_hash,role,created_at) VALUES(?,?,?,?,?,?)", id, b.name || b.email, b.email, hashPassword(b.password), b.role, new Date().toISOString());
+  audit(c.get("user").id, "user_create", "user", id, { role: b.role });
   return c.json({ id }, 201);
 });
 // ponytail: link self-registered parent (Google/Daftar) to an existing child — the only write path to parent_children besides seed/import
@@ -507,6 +541,7 @@ app.post("/api/portal/change-password", P, bodyLimit, async (c) => {
   if (!verifyPassword(String(current || ""), full.password_hash)) return err(c, "invalid", "password lama salah", 401);
   if (!next || String(next).length < 6) return err(c, "invalid", "password baru ≥6 karakter", 400);
   run("UPDATE users SET password_hash=? WHERE id=?", hashPassword(String(next)), u.id);
+  run("UPDATE users SET token_after=? WHERE id=?", new Date().toISOString(), u.id); // older sessions (stolen cookie?) die now
   return c.json({ ok: true });
 });
 app.get("/api/portal/appointments", P, (c) => {
@@ -591,13 +626,6 @@ app.get("/api/portal/reports/:id/pdf", P, (c) => {
   c.header("content-type", "application/pdf");
   return c.body(pdfBytes(`Laporan ${r.full_name || ""}`, [r.summary, (r.period_start || "") + " - " + (r.period_end || "")]));
 });
-app.post("/api/portal/reports/:id/email", P, bodyLimit, async (c) => {
-  const r = ownReport(c, c.req.param("id"));
-  if (!r) return err(c, "not_found", "not found", 404);
-  const { to } = await c.req.json().catch(() => ({}));
-  appendFileSync("./data/outbox.json", JSON.stringify({ to: to || c.get("user").email, report: r.id, at: new Date().toISOString() }) + "\n");
-  return c.json({ ok: true });
-});
 
 // --- feature routers (growth curve, denver checklist, home program, billing) ---
 app.route("/", growthRouter);
@@ -623,12 +651,8 @@ app.get("/emr", (c) => c.redirect("/emr/"));
 app.get("/emr/*", (c) => sendFile(c, DIST_EMR, c.req.path.slice(4) || "/index.html"));
 app.get("/portal", (c) => c.redirect("/portal/"));
 app.get("/portal/*", (c) => sendFile(c, DIST_PORTAL, c.req.path.slice(7) || "/index.html"));
-app.get("/uploads/:fn", (c) => {
-  const fp = join(UP, basename(c.req.param("fn")));
-  if (!existsSync(fp)) return c.notFound();
-  c.header("content-type", /\.pdf$/i.test(fp) ? "application/pdf" : /\.png$/i.test(fp) ? "image/png" : "image/jpeg");
-  return c.body(new Uint8Array(readFileSync(fp)));
-});
+// ponytail: the old unauthenticated /uploads/:fn route is gone — portal files go through the
+// ownership-checked /api/portal/documents/:id/file; a staff viewer can add an authed route later.
 
 const port = Number(process.env.PORT || 8787);
 if (process.env.NODE_ENV !== "test") {

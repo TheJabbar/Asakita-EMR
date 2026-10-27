@@ -15,10 +15,13 @@ export function verifyPassword(pw, stored) {
     return v.length === e.length && timingSafeEqual(v, e);
   } catch { return false; }
 }
+// ponytail: temporary account password for imports — random, printed once for the operator
+export const tempPassword = () => randomBytes(9).toString("base64url");
 function b64(o) { return Buffer.from(JSON.stringify(o)).toString("base64url"); }
 export function signToken(payload, expSec = 7 * 86400) {
   const h = { alg: "HS256", typ: "JWT" };
-  const p = { ...payload, exp: Math.floor(Date.now() / 1000) + expSec };
+  const now = Math.floor(Date.now() / 1000);
+  const p = { ...payload, iat: now, exp: now + expSec };
   const data = `${b64(h)}.${b64(p)}`;
   return `${data}.${createHmac("sha256", SECRET()).update(data).digest("base64url")}`;
 }

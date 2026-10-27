@@ -16,7 +16,7 @@ COPY --from=build /app/apps/api/src ./api/src
 COPY --from=build /app/apps/api/package.json ./api/
 COPY --from=build /app/apps/emr/dist ./public/emr
 COPY --from=build /app/apps/portal/dist ./public/portal
-ENV DATABASE_URL=file:/data/asakita.db UPLOADS_DIR=/data/uploads PORT=8787
+ENV DATABASE_URL=file:/data/asakita.db UPLOADS_DIR=/data/uploads PORT=8787 SEED_DEMO=0
 VOLUME ["/data"]
 EXPOSE 8787
 CMD ["sh","-c","node ./api/src/seed.js && exec node ./api/src/index.js"]

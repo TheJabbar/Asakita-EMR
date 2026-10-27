@@ -25,7 +25,11 @@ export async function me(c) {
   const portal = getCookie(c, "asakita_portal");
   const p = verifyToken(appKind(c) === "portal" ? (portal || staff) : (staff || portal));
   if (!p) return null;
-  return row("SELECT id,name,email,role,status FROM users WHERE id=?", p.sub) || null;
+  // status filter: deactivated users lose access at once; token_after: a password change kills older tokens
+  const u = row("SELECT id,name,email,role,token_after FROM users WHERE id=? AND status='active'", p.sub);
+  if (!u) return null;
+  if (u.token_after && (!p.iat || p.iat * 1000 < Date.parse(u.token_after))) return null;
+  return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
 
 export const need = (...roles) => async (c, next) => {

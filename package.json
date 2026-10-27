@@ -2,7 +2,10 @@
   "name": "asakita",
   "private": true,
   "type": "module",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
     "dev:emr": "npm run dev -w apps/emr",
@@ -16,6 +19,7 @@
     "db:import": "npm run import -w apps/api"
   },
   "devDependencies": {
+    "playwright-core": "^1.64.1",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }

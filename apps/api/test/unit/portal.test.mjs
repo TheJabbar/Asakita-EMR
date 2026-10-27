@@ -89,8 +89,8 @@ describe("unit: portal orang tua", () => {
     assert.equal(pdf.status, 200);
     assert.equal(String.fromCharCode(...new Uint8Array(await pdf.arrayBuffer()).slice(0, 4)), "%PDF");
     assert.equal((await app.request(`/api/portal/reports/${repId}/pdf`, { headers: H(budi) })).status, 404);
-    assert.equal((await app.request(`/api/portal/reports/${repId}/email`, { method: "POST", headers: H(alya), body: JSON.stringify({ to: "alya@example.com" }) })).status, 200);
-    assert.equal((await app.request(`/api/portal/reports/${repId}/email`, { method: "POST", headers: H(budi), body: JSON.stringify({ to: "x@y.z" }) })).status, 404);
+    // report email routes were removed (no real mail provider yet) — a dead endpoint must 404 for anyone
+    assert.equal((await app.request(`/api/portal/reports/${repId}/email`, { method: "POST", headers: H(alya), body: JSON.stringify({ to: "alya@example.com" }) })).status, 404);
   });
   it("stimulation ages + articles filter/slug", async () => {
     for (const a of ["0-6", "6-12", "1-2", "2-3"])

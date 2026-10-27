@@ -1,7 +1,7 @@
 // ponytail: billing — invoice lines per child (auto-generated from therapy sessions or manual),
 // IDR, printable receipt + PDF. No payment gateway (out of scope).
 import { Hono } from "hono";
-import { row, rows, run, uid } from "./db.js";
+import { row, rows, run, uid, tx } from "./db.js";
 import { err, need, STAFF, needOwnChild, audit } from "./guard.js";
 import { pdfBytes } from "./pdf.js";
 import { DEFAULT_PRICES } from "./constants.js";
@@ -38,9 +38,15 @@ billingRouter.get("/api/billing", need(...STAFF), (c) => {
 
 billingRouter.post("/api/billing/items", need("owner", "dokter", "admin"), async (c) => {
   const b = await c.req.json().catch(() => ({}));
-  if (!b.child_id || !b.description) return err(c, "invalid", "child_id + deskripsi wajib", 400);
+  if (!b.child_id || !row("SELECT id FROM children WHERE id=?", b.child_id)) return err(c, "invalid", "child_id tidak dikenal", 400);
+  if (!b.description) return err(c, "invalid", "deskripsi wajib", 400);
   const qty = Number(b.qty) > 0 ? Number(b.qty) : 1;
-  const unit = Number(b.unit_price) >= 0 ? Number(b.unit_price) : priceOf(b.description);
+  let unit;
+  if (b.unit_price === undefined || b.unit_price === null || b.unit_price === "") unit = priceOf(b.description);
+  else {
+    unit = Number(String(b.unit_price).replace(",", ".")); // tolerate ID decimal comma — a NaN here must not bill 0
+    if (!Number.isFinite(unit) || unit < 0) return err(c, "invalid", "harga tidak valid", 400);
+  }
   const id = uid("bi");
   run("INSERT INTO billing_items(id,child_id,date,description,qty,unit_price,session_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
     id, b.child_id, b.date || new Date().toISOString().slice(0, 10), b.description, qty, unit, b.session_id || null, "unpaid", new Date().toISOString());
@@ -51,19 +57,21 @@ billingRouter.post("/api/billing/items", need("owner", "dokter", "admin"), async
 // ponytail: one click bills every unbilled therapy session in the period at the service price
 billingRouter.post("/api/billing/generate", need("owner", "dokter", "admin"), async (c) => {
   const b = await c.req.json().catch(() => ({}));
-  if (!b.child_id) return err(c, "invalid", "child_id wajib", 400);
+  if (!b.child_id || !row("SELECT id FROM children WHERE id=?", b.child_id)) return err(c, "invalid", "child_id tidak dikenal", 400);
   const from = b.from || "1900-01-01", to = b.to || "2999-12-31";
   const sessions = rows(
     `SELECT s.id,s.date,t.name type_name FROM therapy_sessions s LEFT JOIN therapy_types t ON t.id=s.type_id
      WHERE s.child_id=? AND s.date BETWEEN ? AND ? AND s.id NOT IN (SELECT session_id FROM billing_items WHERE session_id IS NOT NULL)`,
     b.child_id, from, to);
   let created = 0;
-  for (const s of sessions) {
-    const desc = s.type_name || "Terapi";
-    run("INSERT INTO billing_items(id,child_id,date,description,qty,unit_price,session_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-      uid("bi"), b.child_id, s.date, desc, 1, priceOf(desc), s.id, "unpaid", new Date().toISOString());
-    created++;
-  }
+  tx(() => { // all-or-nothing: no half-billed run
+    for (const s of sessions) {
+      const desc = s.type_name || "Terapi";
+      run("INSERT INTO billing_items(id,child_id,date,description,qty,unit_price,session_id,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        uid("bi"), b.child_id, s.date, desc, 1, priceOf(desc), s.id, "unpaid", new Date().toISOString());
+      created++;
+    }
+  });
   if (created) audit(c.get("user").id, "billing_generate", "child", b.child_id, { created });
   return c.json({ created }, 201);
 });

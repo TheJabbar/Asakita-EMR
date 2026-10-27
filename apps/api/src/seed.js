@@ -2,6 +2,9 @@ import { getDb, migrate, uid } from "./db.js";
 import { hashPassword } from "./auth.js";
 migrate();
 const db = getDb();
+// demo data is opt-out: Docker images set SEED_DEMO=0 (prod); compose/dev/tests keep the demo.
+// Tests always get the demo (NODE_ENV=test) regardless of the env.
+const DEMO = process.env.NODE_ENV === "test" || process.env.SEED_DEMO !== "0";
 const has = (email) => db.prepare("SELECT id FROM users WHERE email=?").get(email);
 function addUser(name, email, role, pw = "prototype") {
   if (has(email)) return has(email).id;
@@ -10,7 +13,26 @@ function addUser(name, email, role, pw = "prototype") {
     .run(id, name, email, hashPassword(pw), role, new Date().toISOString());
   return id;
 }
-const dokter = addUser("dr. Imelda", "dokter@asakita.demo", "dokter");
+let dokter = null;
+
+if (!DEMO) {
+  // ponytail: production = exactly one dokter account, credentials from env (Render secrets)
+  const email = process.env.DOKTER_EMAIL, pw = process.env.DOKTER_PASSWORD;
+  if (!email || !pw) console.error("SEED_DEMO=0 tanpa DOKTER_EMAIL/DOKTER_PASSWORD — tidak ada akun staff bisa masuk!");
+  else {
+    const ex = has(email);
+    if (ex) db.prepare("UPDATE users SET password_hash=?, role='dokter', status='active' WHERE id=?").run(hashPassword(pw), ex.id);
+    else db.prepare("INSERT INTO users(id,name,email,password_hash,role,status,created_at) VALUES(?,?,?,?,?,?,?)")
+      .run(uid("u"), "Dokter", email, hashPassword(pw), "dokter", "active", new Date().toISOString());
+    console.log("seed prod: akun dokter siap (" + email + ")");
+  }
+  // demo accounts have a publicly documented password — they must not survive a prod boot
+  for (const e of ["dokter@asakita.demo", "terapis@asakita.demo", "admin@asakita.demo", "owner@asakita.demo", "alya@example.com", "budi@example.com", "abdul.jabbar.3794@gmail.com"])
+    if (e !== email) db.prepare("UPDATE users SET status='inactive' WHERE email=?").run(e);
+}
+
+if (DEMO) {
+dokter = addUser("dr. Imelda", "dokter@asakita.demo", "dokter");
 addUser("Terapis Wicara", "terapis@asakita.demo", "terapis");
 addUser("Admin Front Office", "admin@asakita.demo", "admin");
 addUser("Owner", "owner@asakita.demo", "owner");
@@ -44,6 +66,8 @@ if (!db.prepare("SELECT id FROM parents WHERE user_id=?").get(pid)) {
     db.prepare("INSERT OR REPLACE INTO milestones(child_id,key,label,status,updated_at) VALUES(?,?,?,?,?)").run(c2, k, l, s, t);
   console.log("seed ok");
 }
+}
+// --- end of demo users + children ---
 
 // ponytail: education articles — real Indonesian sources (title/author stay curated, body is our
 // summary + a link to the source). Idempotent: stub-era rows (no source_url) get backfilled once,
@@ -102,6 +126,7 @@ const ARTICLES = [
 }
 
 // ponytail: third demo family (Abdul Jr.) so the parent portal can be demoed with a fuller profile
+if (DEMO) {
 const abdulUser = addUser("Abdul Jabbar", "abdul.jabbar.3794@gmail.com", "parent");
 let abdulParent = db.prepare("SELECT id FROM parents WHERE user_id=?").get(abdulUser);
 if (!abdulParent) {
@@ -203,3 +228,5 @@ if (demoKid) {
   }
   console.log("seed features ok");
 }
+}
+// --- end of demo data ---
