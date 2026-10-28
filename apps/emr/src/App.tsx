@@ -238,13 +238,13 @@ export default function App() {
       {/* ponytail: Tumbuh Kembang is a tab inside Data Pasien → patient, not its own menu item; #/progress route stays for deep links */}
       {/* the Denver checklist is a tab inside Tumbuh Kembang, not its own menu item */}
       {nav("/reports", "▤", "Laporan")}
-      {["owner", "dokter", "admin"].includes(me?.role) ? <><div className="side-sec">Sistem</div>{["owner", "dokter"].includes(me?.role) && nav("/checklist", "✓", "Checklist Denver")}{nav("/articles", "▣", "Edukasi")}{["owner", "dokter"].includes(me?.role) && nav("/users", "⚿", "Role & User")}</> : null}
+      {["owner", "dokter", "admin"].includes(me?.role) ? <><div className="side-sec">Sistem</div>{["owner", "dokter"].includes(me?.role) && <>{nav("/checklist", "✓", "Checklist Denver")}{nav("/prices", "⚙", "Harga Layanan")}</>}{nav("/articles", "▣", "Edukasi")}{["owner", "dokter"].includes(me?.role) && nav("/users", "⚿", "Role & User")}</> : null}
       <div className="side-foot">Masuk sebagai <b>{me.role}</b><br /><button className="btn btn-s" style={{ marginTop: 10, width: "100%", color: "#fff", background: "#ffffff22", borderColor: "#ffffff33" }} onClick={() => fetch(API + "/api/auth/logout", { method: "POST", credentials: "include", headers: H }).then(() => setMe(null))}>Keluar</button></div>
     </nav>
     <main className="main">
       <Topbar me={me} />
       {banner && <div className="api-banner" onClick={() => setBanner("")}>⚠ {banner} — klik untuk tutup</div>}
-      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress me={me} /> : R.startsWith("/checklist") ? <ChecklistAdmin /> : R.startsWith("/articles") ? <ArticlesAdmin /> : R.startsWith("/denver") ? <Progress initial="denver" me={me} /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
+      <div className="page">{R === "/" || R === "" ? <Dash /> : R.startsWith("/patients") ? <Patients route={R} me={me} /> : R.startsWith("/schedule") ? <Sched /> : R.startsWith("/soap") ? <Soap route={R} /> : R.startsWith("/therapy") ? <Therapy me={me} /> : R.startsWith("/progress") ? <Progress me={me} /> : R.startsWith("/checklist") ? <ChecklistAdmin /> : R.startsWith("/prices") ? <Prices /> : R.startsWith("/articles") ? <ArticlesAdmin /> : R.startsWith("/denver") ? <Progress initial="denver" me={me} /> : R.startsWith("/reports") ? <Reports /> : R.startsWith("/users") ? <Users /> : <div className="empty"><div className="big">🧭</div>Halaman tidak ditemukan.</div>}</div>
       <div className="footer">Asakita EMR — {new Date().getFullYear()}</div>
     </main>
   </div>;
@@ -421,11 +421,10 @@ function Patients({ route, me }: any) {
 function BillingTab({ childId, child }: any) {
   const [d, setD] = useState<any>(null); const [msg, setMsg] = useState("");
   const [form, setForm] = useState<any>({ description: "", qty: 1, unit_price: "" });
-  const [showPrices, setShowPrices] = useState(false);
   const load = () => api.get(`/api/billing?childId=${childId}`).then(setD).catch((e) => setMsg("Gagal (" + e.message + ")"));
   useEffect(() => { load(); }, [childId]);
   const add = () => {
-    if (!form.description) return alert("Isi deskripsi item.");
+    if (!form.description) return alert("Pilih layanan.");
     if (!confirm("Simpan item tagihan ini?")) return;
     const body: any = { child_id: childId, description: form.description, qty: Number(form.qty) || 1 };
     if (form.unit_price !== "") body.unit_price = String(form.unit_price).replace(",", "."); // ID decimal comma — server validates the rest
@@ -444,16 +443,8 @@ function BillingTab({ childId, child }: any) {
       <button className="btn btn-s" onClick={generate}>⚡ Tagih sesi terapi</button>
       <button className="btn btn-s" onClick={() => window.open(API + `/api/billing/receipt?childId=${childId}`, "_blank")}>⬇ Struk PDF</button>
       <button className="btn btn-s" onClick={printReceipt}>🖨 Cetak struk</button>
-      <button className="btn btn-s" onClick={() => setShowPrices(!showPrices)}>⚙ Harga layanan</button>
       {msg && <span className="sub" style={{ margin: 0 }}>{msg}</span>}
     </div>
-    {showPrices && <div className="card" style={{ marginBottom: 14 }}>
-      <h4 style={{ margin: "0 0 8px" }}>Harga layanan (IDR)</h4>
-      {(d?.prices || []).map((p: any) => <div key={p.name} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f0e7d2" }}>
-        <span style={{ flex: 1, fontSize: 13.5 }}>{p.name}</span>
-        <input className="inp" style={{ width: 130, height: 38 }} defaultValue={p.price} onBlur={(e) => api.put(`/api/billing/prices/${encodeURIComponent(p.name)}`, { price: Number(e.target.value) }).then(load)} />
-      </div>)}
-    </div>}
     <div className="card" style={{ padding: 6 }}>
       <table className="tbl"><thead><tr><th>Tanggal</th><th>Keterangan</th><th>Qty</th><th>Harga</th><th>Total</th><th>Status</th><th /></tr></thead>
         <tbody>{items.map((i: any) => <tr key={i.id}>
@@ -467,7 +458,7 @@ function BillingTab({ childId, child }: any) {
     </div>
     <div className="card" style={{ marginTop: 14 }}>
       <h4 style={{ margin: "0 0 8px" }}>+ Tambah item manual</h4>
-      <div className="fgrid"><input className="inp" placeholder="Deskripsi (cth. Konsultasi Growth)" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+      <div className="fgrid"><select className="inp" value={form.description} onChange={(e) => { const p = (d?.prices || []).find((x: any) => x.name === e.target.value); setForm({ ...form, description: e.target.value, unit_price: p ? p.price : "" }); }}><option value="">— pilih layanan —</option>{(d?.prices || []).map((p: any) => <option key={p.name} value={p.name}>{p.name} — {formatIDR(p.price)}</option>)}</select>
         <div style={{ display: "flex", gap: 8 }}><input className="inp" style={{ width: 90 }} type="number" min={1} value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} title="Qty" />
           <input className="inp" style={{ width: 140 }} type="number" placeholder="Harga" value={form.unit_price} onChange={(e) => setForm({ ...form, unit_price: e.target.value })} /></div></div>
       <button className="btn btn-s" style={{ marginTop: 12, background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={add}>Simpan item</button>
@@ -485,6 +476,18 @@ function BillingTab({ childId, child }: any) {
       </div>
     </div>
   </div>;
+}
+
+// ponytail: service price settings live in the Sistem menu, not inside per-patient billing
+function Prices() {
+  const [ps, setPs] = useState<any[]>([]); const [msg, setMsg] = useState("");
+  const load = () => api.get("/api/billing/prices").then((r) => setPs(r.data)).catch((e) => setMsg("Gagal (" + e.message + ")"));
+  useEffect(() => { load(); }, []);
+  return <div><h2 className="serif">Harga layanan</h2>
+    <p className="sub">Harga yang dipakai otomatis saat “Tagih sesi terapi” atau menambah item tagihan manual. Ubah kolom lalu klik di luarnya untuk menyimpan.</p>
+    {msg && <p className="sub" style={{ color: "#a33" }}>{msg}</p>}
+    <div className="card"><table className="tbl" style={{ width: "100%" }}><thead><tr><th>Layanan</th><th style={{ width: 170 }}>Harga (IDR)</th></tr></thead>
+      <tbody>{ps.map((p: any) => <tr key={p.name}><td><b>{p.name}</b></td><td><input className="inp" style={{ width: 150 }} defaultValue={p.price} onBlur={(e) => api.put(`/api/billing/prices/${encodeURIComponent(p.name)}`, { price: Number(e.target.value) }).then(load).catch((er) => setMsg("Gagal (" + er.message + ")"))} /></td></tr>)}</tbody></table></div></div>;
 }
 
 // ponytail: link a self-registered parent account to this child (portal shows only linked children)

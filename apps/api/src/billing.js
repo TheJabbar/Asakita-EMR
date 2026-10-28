@@ -36,6 +36,8 @@ billingRouter.get("/api/billing", need(...STAFF), (c) => {
   return c.json({ data: items, totals: totals(items), prices: rows("SELECT * FROM service_prices ORDER BY name") });
 });
 
+billingRouter.get("/api/billing/prices", need(...STAFF), (c) => c.json({ data: rows("SELECT * FROM service_prices ORDER BY name") }));
+
 billingRouter.post("/api/billing/items", need("owner", "dokter", "admin"), async (c) => {
   const b = await c.req.json().catch(() => ({}));
   if (!b.child_id || !row("SELECT id FROM children WHERE id=?", b.child_id)) return err(c, "invalid", "child_id tidak dikenal", 400);
