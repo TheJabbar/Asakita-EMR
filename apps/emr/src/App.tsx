@@ -665,7 +665,7 @@ function Progress({ initial = "kurva", me, childId = "" }: any) {
   const [adding, setAdding] = useState(false);
   const [gf, setGf] = useState<any>({ date: dateLocal(), weight_kg: "", height_cm: "", head_cm: "" });
   const [view, setView] = useState(initial);
-  useEffect(() => { if (childId) { setCid(childId); return; } api.get("/api/patients").then((r) => { setKids(r.data); if (r.data[0] && !cid) setCid(r.data[0].id); }).catch(() => {}); api.get("/api/therapy-types").then((r) => { setTypes(r.data); if (r.data[0]) setPt(r.data[0].id); }).catch(() => {}); }, []);
+  useEffect(() => { api.get("/api/therapy-types").then((r) => { setTypes(r.data); if (r.data[0]) setPt(r.data[0].id); }).catch(() => {}); if (childId) { setCid(childId); return; } api.get("/api/patients").then((r) => { setKids(r.data); if (r.data[0] && !cid) setCid(r.data[0].id); }).catch(() => {}); }, []);
   useEffect(() => { if (childId) setCid(childId); }, [childId]);
   const load = (id: string) => { if (!id) return; api.get("/api/milestones?childId=" + id).then((r) => setM(r.data)).catch(() => {}); api.get("/api/therapy-programs?childId=" + id).then((r) => setProgs(r.data)).catch(() => {}); };
   useEffect(() => { load(cid); }, [cid]);
