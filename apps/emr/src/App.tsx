@@ -426,6 +426,7 @@ function BillingTab({ childId, child }: any) {
   useEffect(() => { load(); }, [childId]);
   const add = () => {
     if (!form.description) return alert("Isi deskripsi item.");
+    if (!confirm("Simpan item tagihan ini?")) return;
     const body: any = { child_id: childId, description: form.description, qty: Number(form.qty) || 1 };
     if (form.unit_price !== "") body.unit_price = String(form.unit_price).replace(",", "."); // ID decimal comma — server validates the rest
     api.post("/api/billing/items", body).then(() => { setForm({ description: "", qty: 1, unit_price: "" }); load(); }).catch((e) => alert("Gagal (" + e.message + ")"));
@@ -514,6 +515,7 @@ function EditChild({ sel, onDone }: any) {
     const l = String(f.birth_length_cm ?? "").replace(",", ".");
     if (l !== "" && (Number.isNaN(Number(l)) || +l < 20 || +l > 70)) e.push("PB lahir 20–70 cm.");
     if (e.length) { setMsg(e.join(" ")); return; }
+    if (!confirm("Simpan perubahan data pasien ini?")) return;
     api.put("/api/patients/" + sel.id, { ...f, birth_weight_kg: w === "" ? null : +w, birth_length_cm: l === "" ? null : +l })
       .then(() => { setMsg("✓ Tersimpan."); onDone(); }).catch((er: any) => setMsg("Gagal (" + er.message + ")"));
   };
@@ -557,7 +559,7 @@ function Sched() {
         <label className="lbl">Anak</label><select className="inp" onChange={(e) => setForm({ ...form, child_id: e.target.value })}><option value="">— pilih —</option>{kids.map((k: any) => <option key={k.id} value={k.id}>{k.full_name}</option>)}</select>
         <div className="fgrid"><div><label className="lbl">Mulai</label><input className="inp" type="datetime-local" onChange={(e) => setForm({ ...form, starts_at: e.target.value })} /></div><div><label className="lbl">Ruang</label><input className="inp" value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} /></div></div>
         <label className="lbl">Layanan</label><select className="inp" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{["Konsultasi Dokter", "Assessment Awal", "Terapi Wicara", "Terapi Okupasi", "Sensori Integrasi", "Kontrol"].map((t) => <option key={t}>{t}</option>)}</select>
-        <button className="btn btn-p" style={{ marginTop: 16 }} onClick={() => { if (!form.child_id || !form.starts_at) return alert("Pilih anak + waktu mulai."); api.post("/api/appointments", form).then(() => { load(); setForm({ type: "Konsultasi Dokter", room: "R. Konsultasi" }); }).catch((e) => alert("Gagal (" + e.message + ")")); }}>Simpan jadwal</button></div>
+        <button className="btn btn-p" style={{ marginTop: 16 }} onClick={() => { if (!form.child_id || !form.starts_at) return alert("Pilih anak + waktu mulai."); if (!confirm("Simpan jadwal ini?")) return; api.post("/api/appointments", form).then(() => { load(); setForm({ type: "Konsultasi Dokter", room: "R. Konsultasi" }); }).catch((e) => alert("Gagal (" + e.message + ")")); }}>Simpan jadwal</button></div>
     </div></div>;
 }
 
@@ -575,7 +577,7 @@ function Soap({ route }: any) {
     {locked && <div className="card" style={{ background: "#e2f3e5", borderColor: "#bfe0c5" }}><b>🔒 Catatan ini sudah final</b> — terkunci dan tercatat di audit log. Untuk catatan lanjutan, buat kunjungan baru dari halaman pasien.</div>}
     <div className="card"><label className="lbl">Jenis kunjungan</label><select className="inp" value={f.visit_type} disabled={locked} onChange={(e) => set("visit_type", e.target.value)}><option>Konsultasi</option><option>Konsultasi Tumbuh Kembang</option><option>Assessment Awal</option><option>Kontrol</option></select>
       <div className="soap-grid" style={{ marginTop: 14 }}>{fields.map(([k, l, ph]) => <div className="soap-box" key={k}><label>{l} <span className="char">{(f[k] || "").length} kar</span></label><textarea className="inp" style={{ border: 0, background: "transparent", padding: "8px 0 0" }} rows={4} placeholder={ph} value={f[k] || ""} disabled={locked} onChange={(e) => set(k, e.target.value)} /></div>)}</div>
-      {!locked && <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }} className="no-print"><button className="btn btn-s" onClick={() => save("draft")}>Simpan draft (bisa diubah)</button><button className="btn btn-p" style={{ width: "auto" }} onClick={() => { if (confirm("Finalkan? Setelah final, catatan terkunci dan tidak bisa diubah.")) save("final"); }}>Finalkan & lanjut ke terapi →</button></div>}</div></div>;
+      {!locked && <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }} className="no-print"><button className="btn btn-s" onClick={() => { if (!confirm("Simpan draft ini?")) return; save("draft"); }}>Simpan draft (bisa diubah)</button><button className="btn btn-p" style={{ width: "auto" }} onClick={() => { if (confirm("Finalkan? Setelah final, catatan terkunci dan tidak bisa diubah.")) save("final"); }}>Finalkan & lanjut ke terapi →</button></div>}</div></div>;
 }
 
 const ACTS = ["Imitasi suara", "Kontak mata", "Instruksi sederhana", "Kosakata dasar", "Motorik halus"];
@@ -592,6 +594,7 @@ function Therapy({ me }: any) {
   const recipeItems = f.recipe.split("\n").map((s) => s.trim()).filter(Boolean);
   const save = () => {
     if (!f.child_id || !f.type_id) return alert("Pilih anak + jenis terapi.");
+    if (!confirm("Simpan sesi terapi ini?")) return;
     const body: any = { ...f, activities: f.acts };
     if (recipeItems.length) body.home_program = { title: f.recipe_title || "Latihan di rumah", items: recipeItems.map((label) => ({ label })) };
     api.post("/api/therapy-sessions", body).then(() => { load(f.child_id); setF({ ...f, acts: [], recipe: "" }); }).catch((e) => alert("Gagal (" + e.message + ")"));
@@ -669,6 +672,7 @@ function Progress({ initial = "kurva", me, childId = "" }: any) {
   useEffect(() => { if (!cid) return setCurve(null); api.get(`/api/growth/curve?childId=${cid}&type=${ind}` + (std ? `&standard=${std}` : "")).then(setCurve).catch(() => setCurve(null)); }, [cid, ind, std]);
   const saveGrowth = () => {
     if (!gf.weight_kg && !gf.height_cm && !gf.head_cm) return alert("Isi minimal satu pengukuran.");
+    if (!confirm("Simpan pengukuran ini?")) return;
     const body: any = { child_id: cid, date: gf.date };
     if (gf.weight_kg) body.weight_kg = Number(gf.weight_kg);
     if (gf.height_cm) body.height_cm = Number(gf.height_cm);
@@ -899,6 +903,7 @@ function ArticlesAdmin() {
   const blank = { title: "", category: "stimulasi", author: "", age_tag: "", source_name: "", source_url: "", body_md: "" };
   const save = async () => {
     if (!form.title.trim() || !form.body_md.trim()) return setErr("Judul dan isi artikel wajib diisi.");
+    if (!confirm(form.id ? "Simpan perubahan artikel ini?" : "Terbitkan artikel ini?")) return;
     try {
       if (form.id) await call("/api/articles/" + form.id, "PUT", form);
       else await call("/api/articles", "POST", form);
@@ -986,5 +991,5 @@ function Users() {
   useEffect(() => { load(); }, []);
   return <div><h2 className="serif">Role & akses user</h2><p className="sub">Kelola akun staff dan hak akses.</p>
     {err ? <div className="card">{err}</div> : <><div className="card" style={{ padding: 6 }}><table className="tbl"><thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody>{list.map((u: any) => <tr key={u.id}><td><span className="avatar" style={{ display: "inline-grid", width: 30, height: 30, fontSize: 10, marginRight: 8, verticalAlign: "middle" }}>{initials(u.name)}</span><b>{u.name}</b></td><td>{u.email}</td><td><span className={"pill " + (u.role === "owner" || u.role === "dokter" ? "ok" : "")}>{u.role}</span></td><td>{u.status}</td></tr>)}</tbody></table></div>
-      <div className="card" style={{ marginTop: 14 }}><h3 style={{ marginTop: 0 }}>+ Tambah user</h3><div className="fgrid"><input className="inp" placeholder="Nama" onChange={(e) => setF({ ...f, name: e.target.value })} /><input className="inp" placeholder="email@…" onChange={(e) => setF({ ...f, email: e.target.value })} /></div><div className="fgrid" style={{ marginTop: 10 }}><select className="inp" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{["admin", "terapis", "dokter", "owner"].map((r) => <option key={r}>{r}</option>)}</select><input className="inp" placeholder="password (min 6)" onChange={(e) => setF({ ...f, password: e.target.value })} /></div><button className="btn btn-s" style={{ marginTop: 12, background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={() => api.post("/api/users", f).then(load).catch((e) => alert("Gagal (" + e.message + ")"))}>Simpan user</button></div></>}</div>;
+      <div className="card" style={{ marginTop: 14 }}><h3 style={{ marginTop: 0 }}>+ Tambah user</h3><div className="fgrid"><input className="inp" placeholder="Nama" onChange={(e) => setF({ ...f, name: e.target.value })} /><input className="inp" placeholder="email@…" onChange={(e) => setF({ ...f, email: e.target.value })} /></div><div className="fgrid" style={{ marginTop: 10 }}><select className="inp" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{["admin", "terapis", "dokter", "owner"].map((r) => <option key={r}>{r}</option>)}</select><input className="inp" placeholder="password (min 6)" onChange={(e) => setF({ ...f, password: e.target.value })} /></div><button className="btn btn-s" style={{ marginTop: 12, background: "#2c5545", color: "#fff", borderColor: "#2c5545" }} onClick={() => { if (!confirm("Simpan user baru ini?")) return; api.post("/api/users", f).then(load).catch((e) => alert("Gagal (" + e.message + ")")); }}>Simpan user</button></div></>}</div>;
 }
